@@ -1,6 +1,12 @@
 
-# redis为什么快？
 # Redis和Memcached的区别和共同点
+- 这两个都是基于内存存储的
+- 最大的区别就是memcached重启完之前数据就没了，而redis有持久化机制，重启完数据还在。
+- memcached不支持集群，而redis支持集群
+- memcached只支持k/v数据类型，redis还支持hash、list、set等
+- memcached是多线程、非阻塞IO复用的网络模型，而Redis是单线程的多路IO复用模型。
+- memcached过期数据的删除策略只有惰性删除，而Redis有惰性删除与定期删除。
+- Redis功能也强大多，支持发布订阅模型、Lua 脚本、事务、分布式锁等功能
 # redis常见数据类型
 ### string
 ### hash
@@ -25,4 +31,5 @@
 # redis的集群模式
 # redis的分布式锁
 # 缓存一致性问题
+# redis为什么快？
 # redis的线程模型
