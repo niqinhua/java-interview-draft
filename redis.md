@@ -1,23 +1,22 @@
 
 # redis为什么快？
-# 说一下 Redis 和 Memcached 的区别和共同点
+# Redis和Memcached的区别和共同点
 # redis常见数据类型
-## string
-## hash
-## list
-## set
-## zet
-## hyperLogLog
-## geo
-## bitMap
+### string
+### hash
+### list
+### set
+### zet
+### hyperLogLog
+### geo
+### bitMap
 # redis的数据结构
-## sds
-## 双向链表
-## 压缩列表
-## 哈希表
-## 整数集合
-## 跳表
-
+### sds
+### 双向链表
+### 压缩列表
+### 哈希表
+### 整数集合
+### 跳表
 # redis过期数据的删除策略
 # redis内存淘汰机制
 # redis的持久化机制
