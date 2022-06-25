@@ -217,25 +217,29 @@ scan 游标 match keyPefix* count 1000
 
 redis用的是惰性删除+定期删除策略
 
-- 惰性删除：当读或写一个已经过期的key时，会触发惰性删除这个key。可能会造成太多过期 key 没有被删除。
+- 惰性删除：当读或写一个已经过期的key时，再删除key。可能会造成太多过期 key 没有被删除。
 - 定期删除：每隔一段时间抽取一批key进行删除。
 
 # redis内存淘汰机制
 
-- 当前已用内存超过maxmemory限定时，redis会触发内存淘汰。
-- (1)针对设置了过期时间的key的淘汰策略有：
-  -  volatile-ttl：离过期时间越近的key越先被删除
-  -  volatile-lru：最近一次访问时间越前越先被删除
-  -  volatile-lfu：最近访问次数越少越先被删除
-  -  volatile-random：随机删除
-- (2)针对所有key的淘汰策略有：
+当前已用内存超过maxmemory限定时，redis会触发内存淘汰。
+- (1)针对所有key的淘汰策略有：
   - allkeys-lru: 最近一次访问时间越前越先被删除
   - allkeys-lfu: 最近访问次数越少越先被删除
-  - volatile-random：随机删除
-- (3)还有禁止驱逐策略:
-  - no-eviction：当内存不足以容纳新写入数据时，新写入操作会报错。
+  - allkeys-random：随机删除
+- (2)针对设置了过期时间的key的淘汰策略上面三种都有，多了一个：
+  -  volatile-ttl：离过期时间越近的key越先被删除
+```
+volatile-lru：最近一次访问时间越前越先被删除
+volatile-lfu：最近访问次数越少越先被删除
+volatile-random：随机删除
+```
+- (3)还有禁止驱逐策略，是默认的淘汰策略:
+  - no-eviction：当内存不足以容纳新写入数据时，新写入操作会报OOM错误。
 
 # redis的持久化机制
+
+
 # redis做消息队列
 # 缓存雪崩、缓存穿透、缓存击穿
 # redis的哨兵模式
