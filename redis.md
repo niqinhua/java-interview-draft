@@ -191,6 +191,7 @@ GEOHASH Sicily 地名1 地名2
 # redis过期数据的删除策略
 # redis内存淘汰机制
 # redis的持久化机制
+# redis做消息队列
 # 缓存雪崩、缓存穿透、缓存击穿
 # redis的哨兵模式
 # redis的集群模式
@@ -198,3 +199,4 @@ GEOHASH Sicily 地名1 地名2
 # 缓存一致性问题
 # redis为什么快？
 # redis的线程模型
+
