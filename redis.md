@@ -43,8 +43,8 @@ hmset user:1 name zhuge age 18
 添加商品：hset cart:user:1 sku1 1 
 增加数量：hincrby cart:user:1 sku1 1
 商品类型总数：hlen cart:user:1
-删除商品 	hdel cart:user:1 sku1
-获取购物车所有商品 hgetall cart:user:1
+删除商品：hdel cart:user:1 sku1
+获取购物车所有商品：hgetall cart:user:1
 ```
 
 ### list
@@ -60,8 +60,8 @@ rpush k v [v..]
 lpop key 移除并返回
 rpop key
 lrange key start stop 返回指定区间内的元素，索引从0开始
-blpop key [key..] timeout  弹出一个元素，若列表没有就阻塞等待
-brpop key [key..] timeout
+blpop key [key..] timeout  左边弹出一个元素，若列表没有就阻塞等待
+brpop key [key..] timeout  右边弹出一个元素，若列表没有就阻塞等待
 (3)statck
 栈=lpush+lpop=FIFO
 (4)queue
