@@ -179,6 +179,21 @@ GEOHASH Sicily 地名1 地名2
 
 ### bitmap(特殊类型)
 
+- bitmap实际上就是string类型，只是每位bit都是0和1，用来代表存储的元素存不存在。
+- 布隆过滤器就是基于bitmap
+- 可以用于用户行为统计
+
+```
+(1)001用户新增对userId为11的标记
+setbit beauty_girl_001 11 1
+(2)查询001用户对userId为11的标记
+getbit beauty_girl_001 11
+(3)统计被被设置为 1 的位的数量
+bitcount beauty_girl_001
+(4)BITOP 命令支持 AND 、 OR 、 NOT 、 XOR 这四种操作中的任意一种参数
+BITOP operation destkey key [key ...]
+```
+
 # redis的数据结构
 ### sds
 ### 双向链表
