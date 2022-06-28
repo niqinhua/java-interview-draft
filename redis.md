@@ -15,17 +15,17 @@
 - 可以存储常用的k/v，也可以用于分布式锁，或者计数器。
 - 底层数据结构是sds。
 
-```
+```shell
 (1) 单值缓存
 set k v
-(2)对象缓存
+(2) 对象缓存
 set user:1 json
 mset user:1:name zhuge user:1:age 18
 mget user:1:name user:1:age
-(3)分布式锁
+(3) 分布式锁
 setNx k v
 set k v ex 10 nx
-(4)计数器或自增器
+(4) 计数器或自增器
 incr k
 ``` 
 
@@ -36,8 +36,8 @@ incr k
 - 相比string的操作，消耗内存与cpu更小，储存更节省空间。
 - 底层存储结构是哈希表，数据少且短小时也能用压缩列表存储
 
-```
-(1)对象缓存
+```shell
+(1) 对象缓存
 hmset user:1 name zhuge age 18
 (2) 购物车
 添加商品：hset cart:user:1 sku1 1 
@@ -52,23 +52,23 @@ hmset user:1 name zhuge age 18
 - 可以存储列表、栈、队列
 - 底层存储结构是双向链表，数据少且短小时也能用压缩列表存储
 
-```
+```shell
 (1) 存储key
 lpush k v [v..]
 rpush k v [v..]
-(2)拿key
+(2) 拿key
 lpop key 移除并返回
 rpop key
 lrange key start stop 返回指定区间内的元素，索引从0开始
 blpop key [key..] timeout  左边弹出一个元素，若列表没有就阻塞等待
 brpop key [key..] timeout  右边弹出一个元素，若列表没有就阻塞等待
-(3)statck
+(3) statck
 栈=lpush+lpop=FIFO
-(4)queue
+(4) queue
 队列=lpush+rpop
-(5)blocking mq
+(5) blocking mq
 阻塞队列=lpush+brpop
-(6)微博和微信公众号的消息列表  （这种只能用于粉丝数少的）
+(6) 微博和微信公众号的消息列表  （这种只能用于粉丝数少的）
 比如A用户关注了B、C
 B发消息：lpush msg:A msgId1
 C发消息：lpush msg:A msgId2
@@ -80,10 +80,10 @@ A查看消息：lrange msg:A 0 10
 - 可以存储集合、也可以用于抽奖
 - 底层存储结构是哈希表，或者是整数集合
 
-```
+```shell
 (1) 存储key
 SADD key member [member..] 插入key，元素存在则忽略
-(2)删除元素
+(2) 删除元素
 srem key member [member..] 
 (3) 查询
 smembers key 获取所有元素 
@@ -99,17 +99,17 @@ sunion key [key... ]  并集运算
 sunionstore dest key [key... ]  并集结果放到新集合dest中
 sdiff key [key... ] 差集运算  这里差集的意思是第一个集合减去后面集合的并集，第一个集合剩多少就是多少
 sdiffstore dest key [key... ]  差集结果放到新集合dest中
-(5)抽奖场景
+(5) 抽奖场景
 参与抽奖：sadd key user1
 查看抽奖的所有用户：smemebers key
 抽取count名中奖者 : spop key [count] 选出count 个元素，元素删除
-(6)朋友圈点赞收藏标签
+(6) 朋友圈点赞收藏标签
 点赞 sadd like:message1 user1
 取消点赞: srem like:message1 user1
 检查用户是否点赞过   sismember like:message1 user1
 获取点赞的用户列表 smembers like:message1
 获取点赞的用户数 scard like:message1 
-(7)互相关注
+(7) 互相关注
  A和B共同关注的人：sinter aSet  bSet
 我(A)关注的人(C、D)也关注他们: sismember C  X ; sismemeber D X; 
 我可能认识的人：sdiff A C 
@@ -122,20 +122,20 @@ sinter 安卓set 8GBset 高清set
 - 可以用于有序集合、排行榜
 - 底层存储结构是跳表，数据少且短小时也能用压缩列表存储
 
-```
-(1)删除
+```shell
+(1) 删除
 zrem key [member..] 删除一个元素
-(2)查询
+(2) 查询
 zscore key memeber 返回key中某个元素的分值
 zrange key start stop [withscores] 正序获取key范围内的元素
 zrevrange key start stop  [withscores] 逆序获取key范围内的元素
-(4)修改、插入
+(4) 修改、插入
 zadd key score member [[score member]..] 往key中加入带分值的元素
 zincrby key 数值 member 为key里面的元素的分值++数值
-(5)集合操作
+(5) 集合操作
 zunionstore newkey 后面key的数量 key [key..]  并集计算
 zinterstore newkey 后面key的数量 key [key..]  交集计算
-(6)排行榜
+(6) 排行榜
 点击一次新增加一次热度： zincrby new:id1 1 标题
 今天热度排行前十：zrevrange new:天:20220202 0 9 withscores
 七日热度排行榜： zuionstore new:新的key:最近天 7 new:天:20220201 new:天:20220202 一直到 new:天:20220207 
@@ -148,12 +148,12 @@ zinterstore newkey 后面key的数量 key [key..]  交集计算
 - 缺点是只能告诉某个元素有没有存在过，不能把所有元素拿出来，统计基数总个数也只是估算的。（因为只会根据输入元素来计算基数，它并不存储元素本身）。
 - 可以用于估算每日访问ip/用户数
 
-```
-(1)添加元素，计算成基数存储下来
+```shell
+(1) 添加元素，计算成基数存储下来
 PFADD runoobkey "redis"
-(2)统计基数估算值
+(2) 统计基数估算值
 PFCOUNT runoobkey
-(3)合并两个HyperLogLog到新的HyperLogLog
+(3) 合并两个HyperLogLog到新的HyperLogLog
 PFMERGE destkey sourcekey [sourcekey ...]
 ```
 
@@ -162,18 +162,18 @@ PFMERGE destkey sourcekey [sourcekey ...]
 -  主要用于存储地理位置的经度、维度、地名。类似集合。
 -  使用geohash来保存地理位置的坐标
 
-```
-(1)添加一个地理位置到
+```shell
+(1) 添加一个地理位置到
 GEOADD Sicily 13.361389 38.115556 "Palermo" 15.087269 37.502669 "Catania"
-(2)获取地理位置的坐标
+(2) 获取地理位置的坐标
 GEOPOS Sicily 地名1 地名2 
-(3)计算两个位置之间的距离。
+(3) 计算两个位置之间的距离。
 GEODIST Sicily Palermo Catania
-(4)根据用户给定的经纬度坐标来获取指定范围内的地名+地理位置集合。
+(4) 根据用户给定的经纬度坐标来获取指定范围内的地名+地理位置集合。
 GEORADIUS Sicily 15 37 100 km
-(5)用户给定的地名来获取指定范围内的地名集合。
+(5) 用户给定的地名来获取指定范围内的地名集合。
 GEORADIUSBYMEMBER Sicily Agrigento 100 km
-(6)geohash 用于获取一个或多个位置元素的geohash值
+(6) geohash 用于获取一个或多个位置元素的geohash值
 GEOHASH Sicily 地名1 地名2 
 ```
 
@@ -183,14 +183,14 @@ GEOHASH Sicily 地名1 地名2
 - 布隆过滤器就是基于bitmap
 - 可以用于用户行为统计
 
-```
-(1)001用户新增对userId为11的标记
+```shell
+(1) 001用户新增对userId为11的标记
 setbit beauty_girl_001 11 1
-(2)查询001用户对userId为11的标记
+(2) 查询001用户对userId为11的标记
 getbit beauty_girl_001 11
-(3)统计被被设置为 1 的位的数量
+(3) 统计被被设置为 1 的位的数量
 bitcount beauty_girl_001
-(4)BITOP 命令支持 AND 、 OR 、 NOT 、 XOR 这四种操作中的任意一种参数
+(4) BITOP 命令支持 AND 、 OR 、 NOT 、 XOR 这四种操作中的任意一种参数
 BITOP operation destkey key [key ...]
 ```
 
@@ -264,7 +264,7 @@ redis的持久化机制包括rdb和aof两种方式，默认是用rdb持久化方
 # redis做消息队列
 
 - 普通消息队列：redis可以用list的lpush和rpop做消息队列，可以用brpop做阻塞队列。缺点是不能查历史记录的mq。
-```
+```shell
 (1)发送一条消息 / 将一个信息插入到列表头部
 lpush mymq message1
 (2)获取一条消息 / 移除并返回列表的最后一个元素
@@ -274,7 +274,7 @@ bpop mymq 1000
 ```
 
 - 发布订阅模式：redis可以用发布订阅模式实现一个客户端发布订阅消息，多个客户端接收接收订阅消息。缺点是消息无法持久化，一旦出现网络问题，或者宕机，消息就没了。
-```
+```shell
 接收消息的redis客户端：
 (1) 订阅给一个频道的信息。
 SUBSCRIBE mymq
@@ -285,7 +285,7 @@ PUBLISH mymq "Redis PUBLISH test"
 ```
 
 -  延时队列：redis可以用zset，拿时间戳作为score，消息内容作为member调用zadd来生产消息，消费者用zrangebyscore指令获取N秒之前的数据轮询进行处理。
-```
+```shell
 (1)添加一条消息, 添加时间为20220628111008 / 向有序集合添加一个或多个成员，或者更新已存在成员的分数
 ZADD mymq 20220628111008 message1
 (2)获取一分钟内的消息,当前时间是添加时间为20220628111100 / 通过分数返回有序集合指定区间内的成员
@@ -346,6 +346,33 @@ ZRANGEBYSCORE mymq 20220628111000 20220628111100 [WITHSCORES] [LIMIT]
 # 缓存一致性问题
 # redis为什么快？
 # redis的线程模型
-# 管道
+# redis的pipeline管道技术
+
+- pipeline就是指客户端一次性发送多个命令，等所有命令都发送完，redis会把所有处理结果缓存起来，都处理完了再一次性把所有处理结果返回给客户端。所以不建议一次性发太多命令，不然太费内存，而且会阻塞其他客户端命令太久。
+- pipeline不是原子性的，前面的命令中途就算有失败的，也不会影响后面的命令
+- pipeline的好处是本来多条redis命令需要多次I/O往返，现在只需要一次。
+- 不过pipeline要求执行的指令间没有因果关系。
+
+```shell
+(1) redis客户端利用pipeline发送指令。首先使用 PING 命令检查 Redis 是否正常工作，然后又分别使用了 SET/GET/INCR 命令，以及 sleep 阻塞 2 秒，最后将这些命令一次性的提交给 Redis 服务器，Redis 服务器在阻塞了 2 秒之后，一次性输出了所有命令的响应信息。每个命令字符串必须以 \r\n 结尾。至于语句最后的 nc localhost 6379 是固定格式无需更改。
+
+(echo -en "PING\r\n SET name xiaohua\r\n GET name\r\n INCR num\r\n INCR num\r\n INCR num\r\n"; sleep 2)|nc localhost 6379
+```
+
+
+```java
+(2) jedis利用pipeline发送指令
+
+//得到关联jedis客户端的pipeline
+Pipeline pl = jedis.pipelined();
+
+//pipeline通过关联的jedis客户端向服务器发送请求 
+pl.incr("num");
+pl.set("name","xiaohua");
+
+//pipeline向服务端请求返回值
+List<Object> results = p.syncAndReturn();
+```
+
 # redis事务
 
