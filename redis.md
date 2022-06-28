@@ -387,3 +387,4 @@ List<Object> results = p.syncAndReturn();
 
 # redis事务
 
+- redis事务
