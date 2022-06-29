@@ -248,19 +248,23 @@ redis的持久化机制包括rdb和aof两种方式，默认是用rdb持久化方
   - 另外，由于每次快照保存的是当时redis全量的数据，数据量大的话，会持久化好几分钟，一旦宕机，持久化过程中新增或修改的数据就没了，丢了好几分钟的数据。
   - 好处就是因为每次快照不同时刻的数据到rdb文件，可以利用rdb文件还原到不同时刻的版本。 而且由于是二进制存储，RDB在恢复大数据集时的速度比AOF的恢复速度要快，很适合于灾难恢复。
 
+<div align=center><img src="https://user-images.githubusercontent.com/27798171/176376539-26cab0c3-3afa-4248-bcac-8b5a32df1af1.png"/></div>
+
 - aof
   - 把修改的每一条指令以resp协议追加到aof文件里面。
-  - 主进程处理一条修改指令时，会先修改内存的这条数据。如果你配置的是always写盘策略，那主进程就还得再把这条指令追加到磁盘的aof文件里面。如果你配置的是每秒一次（EverySecond）的写盘策略，那主进程就还得再把这条指令写到aof内存缓冲区，然后redis后台会有一个线程专门，每隔一秒，把内存缓冲区内积累的指令同步到aof文件。还有一种no写盘策略，和每秒一次写盘策略类似，只不过没有后台线程去执行写入磁盘的操作，而是由操作系统来决定，何时刷新到磁盘。
+  - 主进程处理一条修改指令时，会先修改内存的这条数据。如果你配置的是always写盘策略，那主进程就还得再把这条指令追加到磁盘的aof文件里面。如果你配置的是每秒一次（EverySecond）的写盘策略，那主进程就还得再把这条指令写到aof内存缓冲区，缓冲区满了或者是每隔一秒，就会有一个线程专门把内存缓冲区内积累的指令同步到aof文件。还有一种no写盘策略，和每秒一次写盘策略类似，只不过没有后台线程去执行写入磁盘的操作，而是由操作系统来决定，何时刷新到磁盘。
   - 一般都是用每秒一次这种写盘策略，可以让主线程处理客户端指令时响应快些，因为直接写到缓冲区内存肯定比写到磁盘快。最多也就丢失一秒的数据。
   - 如果redis已经跑了一年，那这个aof文件会非常庞大，恢复数据会特别慢，比如一个key如果incr了好几千次，没必要记录几千次，只需要记录最后的值就好，所以需要对aof进行重写。但是就算重写了，速度也会比rdb慢很多，所以可以用混合持久化。
 
 - aof重写
-  - 原理就是主进程fork一个子进程，子进程扫描内存的所有数据，转换为Redis的操作指令，再以resp协议写到新的的aof文件，文件写成功了再覆盖原来的aof文件。如果重写过程中有修改指令，也是利用写时复制处理。就算重写中途失败了，新的指令还是正常追加到原来的aof文件，不会导致数据丢失。
+  - 原理就是主进程fork一个子进程，子进程扫描内存的所有数据，转换为Redis的set操作指令，再以resp协议写到新的aof文件，在重写期间，如果有修改指令，会被存到aof重写缓冲区中。子进程重写完以后，会通知父进程，父进程会把aof缓冲区的内存追加到aof文件，并把新文件覆盖原来的aof文件。就算重写中途失败了，新的指令还是正常追加到原来的aof文件，不会导致数据丢失。
   - 默认是文件大小增长100%，且大于64M才触发重写。
 
 - 混合持久化
   - 其实他本质上也是aof持久化，只不过是重写的时候，把重写这一时刻内存所有的数据转换成rdb格式写到一个新的aof文件里面，在这一时刻之后所有的新增修改指令就还是正常按照aof格式追加在文件后面，文件写成功了再覆盖原来的aof文件。数据恢复的时候，就可以先加载前面的rdb数据，再加载后面的aof数据，恢复效率高很多。
   
+<div align=center><img src="https://user-images.githubusercontent.com/27798171/176377625-a7b598a0-1093-4644-bbba-ad1195f98746.png"/></div>
+
 # redis做消息队列
 
 - 普通消息队列：redis可以用list的lpush和rpop做消息队列，可以用brpop做阻塞队列。缺点是不能查历史记录的mq。
@@ -332,6 +336,11 @@ ZRANGEBYSCORE mymq 20220628111000 20220628111100 [WITHSCORES] [LIMIT]
 (1) 从节点的redis.conf里面配置主节点
 replicaof 主节点ip 端口
 ```
+<div align=center>
+<img src="https://user-images.githubusercontent.com/27798171/176372466-b21026c8-6d98-4780-b7a3-47d83a30eb8b.png"/>
+<img src="https://user-images.githubusercontent.com/27798171/176372527-c77691bb-d9ce-4f72-92c1-b2880975d26e.png"/>
+<img src="https://user-images.githubusercontent.com/27798171/176372584-9e0eab65-75f9-4528-bb62-e74b27554aa6.png"/>
+</div>
 
 # redis的哨兵模式
 
@@ -343,6 +352,10 @@ replicaof 主节点ip 端口
 (1) 配置哨兵的sentinel.conf的主节点，后面的3代表多少个sentinel认为master失效就才算失效，一般等于sentinel总数/2 + 1
 sentinel monitor 随便起个master名字 主节点ip 端口  2
 ```
+
+<div align=center>
+<img src="https://user-images.githubusercontent.com/27798171/176372993-65297293-3119-4f7b-b9e8-2fae60048d41.png"/>
+</div>
 
 # redis的集群模式
 
@@ -357,12 +370,16 @@ sentinel monitor 随便起个master名字 主节点ip 端口  2
 # 缓存一致性问题
 # redis为什么快？
 # redis的线程模型
-# redis的pipeline管道技术
+# redis管道、事务、lua脚本
+- 管道
+  - 
+  - pipeline就是指客户端一次性发送多个命令，等所有命令都发送完，redis会把所有处理结果缓存起来，都处理完了再一次性把所有处理结果返回给客户端。所以不建议一次性发太多命令，不然太费内存，而且会阻塞其他客户端命令太久。
+  - 可以节省连接->发送命令->返回结果这个过程所产生的时间
+  - pipeline不是原子性的，前面的命令中途就算有失败的，也不会影响后面的命令
+  - pipeline的好处是本来多条redis命令需要多次I/O往返，现在只需要一次。
+  - 不过pipeline要求执行的指令间没有因果关系。
 
-- pipeline就是指客户端一次性发送多个命令，等所有命令都发送完，redis会把所有处理结果缓存起来，都处理完了再一次性把所有处理结果返回给客户端。所以不建议一次性发太多命令，不然太费内存，而且会阻塞其他客户端命令太久。
-- pipeline不是原子性的，前面的命令中途就算有失败的，也不会影响后面的命令
-- pipeline的好处是本来多条redis命令需要多次I/O往返，现在只需要一次。
-- 不过pipeline要求执行的指令间没有因果关系。
+<div align=center><img src="https://user-images.githubusercontent.com/27798171/176371687-1cb89df1-94d7-41ad-8d82-21c79dcc5ea8.png"/></div>
 
 ```shell
 (1) redis客户端利用pipeline发送指令。首先使用 PING 命令检查 Redis 是否正常工作，然后又分别使用了 SET/GET/INCR 命令，以及 sleep 阻塞 2 秒，最后将这些命令一次性的提交给 Redis 服务器，Redis 服务器在阻塞了 2 秒之后，一次性输出了所有命令的响应信息。每个命令字符串必须以 \r\n 结尾。至于语句最后的 nc localhost 6379 是固定格式无需更改。
@@ -385,6 +402,6 @@ pl.set("name","xiaohua");
 List<Object> results = p.syncAndReturn();
 ```
 
-# redis事务
-
 - redis事务
+
+
