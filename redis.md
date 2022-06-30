@@ -374,11 +374,9 @@ sentinel monitor 随便起个master名字 主节点ip 端口  2
 - 管道
   - 管道是redis客户端提供的技术，和服务端没关系。
   - 客户端会一次性发送多个命令到内核的缓冲区，由操作系统把所有命令发送给服务端，服务端处理完会把所有处理结果缓存起来，都处理完了再一次性把所有处理结果返回给客户端。
-  - pipeline就是指客户端一次性发送多个命令，等所有命令都发送完，redis会把所有处理结果缓存起来，都处理完了再一次性把所有处理结果返回给客户端。所以不建议一次性发太多命令，不然太费内存，而且会阻塞其他客户端命令太久。
-  - 可以节省连接->发送命令->返回结果这个过程所产生的时间
-  - pipeline不是原子性的，前面的命令中途就算有失败的，也不会影响后面的命令
-  - pipeline的好处是本来多条redis命令需要多次I/O往返，现在只需要一次。
-  - 不过pipeline要求执行的指令间没有因果关系。
+  - 这样就可以节省多次连接、发送、返回的时间，只需要一次就好。
+  - pipeline不是原子性的，前面的命令中途就算有失败的，也不会影响后面的命令。
+  - 不过pipeline要求执行的指令间没有因果关系。。
 
 <div align=center><img src="https://user-images.githubusercontent.com/27798171/176371687-1cb89df1-94d7-41ad-8d82-21c79dcc5ea8.png"/></div>
 <div align=center><img src="https://user-images.githubusercontent.com/27798171/176405003-33bde355-554b-4082-bd6f-c0d207ec2e30.png"/></div>
@@ -405,5 +403,54 @@ List<Object> results = p.syncAndReturn();
 ```
 
 - redis事务
+  - redis的事务不支持回滚，其中一个命令失败了，也不会影响其他命令。
+  - 用mutil开启事务，后续发送的命令放到服务端队列里面，调用exec执行所有命令，执行到exec会阻塞其他命令，调用discard清空队列的命令。
+  - 有个watch命令可以监听指定的key，如果你执行的事务里面要修改这个key，就算调用了exec整个事务也不会执行。
+  - 可以保证一致性和隔离性，因为事务前后数据是保持一致的，另外redis毕竟是单线程处理命令的，所以事务之间是隔离的，但不能保证持久性和原子性，因为不管是rdb和aof持久化都有概率宕机的时候丢失数据，没有原子性是因为不支持出错回滚，但能保证命令都执行过或都不执行。
 
+```shell
+(1)执行事务
+> MULTI
+OK
+> SET USER "Guide哥"
+QUEUED
+> GET USER
+QUEUED
+> EXEC
+1) OK
+2) "Guide哥"
 
+(2)取消事务
+> MULTI
+OK
+> SET USER "Guide哥"
+QUEUED
+> GET USER
+QUEUED
+> DISCARD
+OK
+
+(3)监听某个key
+> WATCH USER
+OK
+> MULTI
+> SET USER "Guide哥"
+OK
+> GET USER
+Guide哥
+> EXEC
+ERR EXEC without MULTI
+
+```
+
+- lua脚本
+  - redis可以用EVAL命令来执行lua脚本，lua脚本可以支持原子性地执行多条命令，而且可以写一些计算和判断逻辑。
+  - 相比执行多条命令，lua脚本只需要一次发送和一次返回。
+
+- 对比
+|  | pipeline | redis事务 | lua脚本 |
+|  ----  | ----  |
+| 命令缓冲方式 | 命令缓冲在客户端本地内存中 | 命令缓冲在服务端内存队列 |  |
+| 命令缓冲方式 | 只需要发一次到服务端 | 每个命令都需要发送到服务端 | 只需要发一次到服务端 |
+| 原子性 | 否 | 否 | 是 |
+| 集群时只能作用于单个节点的key | 是 | 是 | 是 |
