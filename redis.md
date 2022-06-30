@@ -370,6 +370,8 @@ sentinel monitor 随便起个master名字 主节点ip 端口  2
 # 缓存一致性问题
 # redis为什么快？
 # redis的线程模型
+- 
+
 # redis管道、事务、lua脚本
 - 管道
   - 管道是redis客户端提供的技术，和服务端没关系。
