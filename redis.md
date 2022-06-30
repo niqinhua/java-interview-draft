@@ -447,6 +447,13 @@ ERR EXEC without MULTI
   - redis可以用EVAL命令来执行lua脚本，lua脚本可以支持原子性地执行多条命令，而且可以写一些计算和判断逻辑。
   - 相比执行多条命令，lua脚本只需要一次发送和一次返回。
 
+```
+(1)执行lua脚本
+EVAL script numkeys key [key ...] arg [arg ...]
+EVAL "return {KEYS[1],KEYS[2],ARGV[1],ARGV[2]}" 2 key1 key2 first second
+```
+
+
 | 对比 | pipeline | redis事务 | lua脚本 |
 | ---- | ---- | ---- | ---- |
 | 命令缓冲方式 | 命令缓冲在客户端本地内存中 | 命令缓冲在服务端内存队列 | 命令缓冲在服务端内存队列 |
