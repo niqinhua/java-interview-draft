@@ -268,6 +268,7 @@ redis的持久化机制包括rdb和aof两种方式，默认是用rdb持久化方
 # redis做消息队列
 
 - 普通消息队列：redis可以用list的lpush和rpop做消息队列，可以用brpop做阻塞队列。缺点是不能查历史记录的mq。
+
 ```shell
 (1)发送一条消息 / 将一个信息插入到列表头部
 lpush mymq message1
@@ -278,6 +279,7 @@ bpop mymq 1000
 ```
 
 - 发布订阅模式：redis可以用发布订阅模式实现一个客户端发布订阅消息，多个客户端接收接收订阅消息。缺点是消息无法持久化，一旦出现网络问题，或者宕机，消息就没了。
+
 ```shell
 接收消息的redis客户端：
 (1) 订阅给一个频道的信息。
@@ -289,6 +291,7 @@ PUBLISH mymq "Redis PUBLISH test"
 ```
 
 -  延时队列：redis可以用zset，拿时间戳作为score，消息内容作为member调用zadd来生产消息，消费者用zrangebyscore指令获取N秒之前的数据轮询进行处理。
+
 ```shell
 (1)添加一条消息, 添加时间为20220628111008 / 向有序集合添加一个或多个成员，或者更新已存在成员的分数
 ZADD mymq 20220628111008 message1
@@ -297,7 +300,58 @@ ZRANGEBYSCORE mymq 20220628111000 20220628111100 [WITHSCORES] [LIMIT]
 ```
 
 - redis stream：
+  - 消息可以持久化，可以访问任何时刻的数据。支持消费者独立消费或者消费组消费。
+  - 独立消费就是比如用阻塞方式获取一条消息时，这条消息被一个客户端拿到了，另外一个客户端还用阻塞方式获取就拿不到了。
+  - 而消费组消费，维护了每个消费组当前消费的位置，新来一条消息，每个消费组都能消费，但是一条消息只能被消费组里面的一个消费者消费。
+  - 当消费者从消费组获取到消息的时候，会先把消息添加到自己消费组的pending列表，每个消费组都有维护一个pending列表，当消费者消费成功返回确认的时候，就会把这条消息从pending列表删除。
+  - 如果消费者没有及时返回确认，就会导致这条消息占用2倍内存，比较浪费内存。
 
+```shell
+一、生产者：
+(1) 发送一条消息到队列中，如果指定的队列不存在，则创建一个队列, id为*代表自增，返回值为id
+XADD key ID field value [field value ...]
+XADD mymq * name xiaohua  
+
+(2) 删除一条消息，其实只是逻辑删除
+XDEL key ID [ID ...]
+XDEL mymq 1538561700640-0
+
+二、消费者的独立消费（在队列没有变更的情况，命令有幂等性）：
+(1) 获取消息列表，会自动过滤已经删除的消息。start为-代表最小值，end为+代表最大值
+XRANGE key start end [COUNT count]
+获取所有消息: xrange mymq - +
+获取某个id之后的消息: xrange mymq 1538561700640-0 +
+
+(2)以阻塞或非阻塞方式获取消息列表
+XREAD [COUNT count] [BLOCK milliseconds] STREAMS key [key ...] id [id ...]
+从头部读取两条消息，非阻塞模式，读不到就返回空: XREAD COUNT 2 STREAMS mymq 0-0
+读取1条大于某个id的消息，非阻塞模式，读不到就返回空: XREAD COUNT 1 STREAMS mymq 1538561700640-0
+从尾部读取一条新消息，阻塞模式，一直阻塞到有消息: XREAD BLOCK 0 STREAMS mymq $
+
+三、消费者的消费组消费（在队列没有变更的情况，命令没有幂等性，消费组游标会一直往前）：
+(1) 创建消费者组
+XGROUP [CREATE key groupname id-or-$] [SETID key groupname id-or-$] [DESTROY key groupname] [DELCONSUMER key groupname consumername]
+从头开始消费：XGROUP CREATE mymq my-consumer-group-1 0-0  
+从尾开始消费，只接受新消息：XGROUP CREATE mymq my-consumer-group-1 $
+
+(2) 读取消费组中的消息，id为>代表只把没有分发给别人的消息发给我
+XREADGROUP GROUP group consumer [COUNT count] [BLOCK milliseconds] [NOACK] STREAMS key [key ...] ID [ID ...]
+获取一条消息，非阻塞模式：XREADGROUP GROUP my-consumer-group-1 随便消费者名字1号 COUNT 1 STREAMS mymq >
+获取一条消息，阻塞模式：XREADGROUP GROUP my-consumer-group-1 随便消费者名字2号 BLOCK 0 STREAMS mymq >
+
+(3) 确认消息
+XACK mymq my-consumer-group-1 1605524648266-0  
+
+(4) 获取消费组或消费者里面还没确认的消息。count最大为10
+XPENDING key group [[IDLE min-idle-time] start end count [consumer]]
+获取消费组还没确认的消息信息，返回还没确认的总数量、最小消息id、最大消息id、列表[消费者名字、对应的待确认数量]：XPENDING mymq  my-consumer-group-1
+获取消费者还没确认的消息，返回列表[消息id、所属消费者、消息被消费后到现在的时间、消息被获取的次数]：XPENDING mymq  my-consumer-group-1 0 + 10 随便消费者名字1号
+
+(5) 转移消息归属权。min-idle-time 表示最小空闲时间，只有后续指定ID的消息空闲时间大于指定的空闲时间，消息归属权转移指令才会生效。
+XCLAIM key group consumer min-idle-time ID [ID …] [IDLE ms] [TIME ms-unix-time] [RET]
+把某个id为XX的消息归到消费者2号下，XCLAIM mymq my-consumer-group-1  随便消费者名字2号 10000 1605524648266-0 
+
+```
 # 缓存雪崩、缓存穿透、缓存击穿
 
 - 缓存穿透：
@@ -346,7 +400,7 @@ replicaof 主节点ip 端口
 
 - 如果没有哨兵的时候，主节点挂了，需要人为指定一个节点为主节点，再修改其他从节点的主节点，而且客户端还得修改master节点地址。
 - 哨兵模式描述：客户端只配置所有哨兵的地址，哨兵只配置主节点的地址，不过哨兵能拿到所有从节点信息。客户端一开始连接到哨兵，从哨兵拿到redis的主节点以后，后续就直接访问redis的主节点了。当redis主节点挂了，哨兵集群会重新选举出redis主节点，哨兵会通知客户端，客户端就可以动态切换主节点地址。
-- 哨兵leader选举流程：当一个哨兵觉得master挂了，这个哨兵会和其他哨兵选出一个哨兵leader，如果有个哨兵的投票率超过一半，就可以作为哨兵leader，由它负责故障转移，从存活的从节点选一个主节点。
+- 哨兵leader选举流程：当一个哨兵觉得master挂了，这个哨兵会和其他哨兵选出一个哨兵leader，如果有个哨兵的投票率sentinel.conf里面配置的数量，正常都是配置超过一半就可以作为哨兵leader，由它负责故障转移，从存活的从节点选一个主节点。
 
 ```
 (1) 配置哨兵的sentinel.conf的主节点，后面的3代表多少个sentinel认为master失效就才算失效，一般等于sentinel总数/2 + 1
@@ -360,7 +414,6 @@ sentinel monitor 随便起个master名字 主节点ip 端口  2
 # redis的集群模式
 
 - 集群模式描述：
-
 - 集群模式和哨兵模式比较：
 - 集群选举原理：
 - 集群脑裂数据丢失问题：
