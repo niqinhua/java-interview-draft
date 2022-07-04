@@ -382,6 +382,7 @@ XCLAIM key group consumer min-idle-time ID [ID …] [IDLE ms] [TIME ms-unix-time
   - 如果是第一次进行主从同步，从节点会发个psync同步命令，主节点就执行bgsave命令来生成最新的rdb文件，持久化期间，新进来的修改指令会缓存到内存里。持久化完以后，主节点就会把rdb文件发给从节点，从节点就会清空掉自己的所有数据并加载收到的rdb数据到内存里。然后从节点会通知主节点将持久化期间放内存的新数据发送给从节点。后续的修改新增命令，就是来一条就异步发送给从节点。
   - 如果master收到了多个从节点的psync同步命令，主节点只会生成一次rdb文件，把这一份rdb文件发给多个从节点。
   - 如果中途从节点挂了，主节点会在内存创建一个缓存队列，缓存最近一段时间的数据，由于从节点有维护已同步数据的偏移位置和主节点的进程id，所以从节点可以发送待偏移位置的psync同步命令给主节点，主节点收到了就将缓存里面的数据从偏移量开始之后发给从节点，如果找不到偏移位置，或者主节点重启过导致进程id变了就直接全量同步给从节点。
+  - 主节点挂了，需要人为指定一个节点为主节点，再修改其他从节点的主节点，而且客户端还得修改master节点地址，所以最好用哨兵模式。
 
 - 主从复制风暴问题：
   - 如果从节点太多，会导致主节点压力太多，要维持太多长连接，还得必传维持心跳，网络带宽压力也会比较大，所以可以考虑让主节点同步给部分从节点以后，让从节点与剩余从节点之间同步。
@@ -398,9 +399,9 @@ replicaof 主节点ip 端口
 
 # redis的哨兵模式
 
-- 如果没有哨兵的时候，主节点挂了，需要人为指定一个节点为主节点，再修改其他从节点的主节点，而且客户端还得修改master节点地址。
-- 哨兵模式描述：客户端只配置所有哨兵的地址，哨兵只配置主节点的地址，不过哨兵能拿到所有从节点信息。客户端一开始连接到哨兵，从哨兵拿到redis的主节点以后，后续就直接访问redis的主节点了。当redis主节点挂了，哨兵集群会重新选举出redis主节点，哨兵会通知客户端，客户端就可以动态切换主节点地址。
-- 哨兵leader选举流程：当一个哨兵觉得master挂了，这个哨兵会和其他哨兵选出一个哨兵leader，如果有个哨兵的投票率sentinel.conf里面配置的数量，正常都是配置超过一半就可以作为哨兵leader，由它负责故障转移，从存活的从节点选一个主节点。
+- 哨兵模式描述：客户端只配置所有哨兵的地址，哨兵只配置主节点的地址，不过哨兵能拿到所有从节点信息。客户端一开始连接到哨兵，从哨兵拿到redis的主节点以后，后续就直接访问redis的主节点了。当有个哨兵发现某个redis主节点挂了，会通过发布订阅模式通知其他哨兵，哨兵集群会重新选举出redis主节点，哨兵会通知客户端，客户端就可以动态切换主节点地址。
+- 哨兵leader选举流程：当一个哨兵觉得master挂了，这个哨兵会和其他哨兵选出一个哨兵leader，如果有个哨兵的投票率sentinel.conf里面配置的数量，正常都是配置超过一半就可以作为哨兵leader，由它负责故障转移，从存活的从节点选一个主节点，把其他子节点的主节点改为新的主节点，等原来的主节点重新上线，哨兵会自动把它设置为从节点。
+- 哨兵模式只有一个redis主节点对外提供服务，没法支持很高的并发，且单个主节点内存也能设置太大，不然持久化文件太大，影响主从同步效率，恢复数据也会太久。
 
 ```
 (1) 配置哨兵的sentinel.conf的主节点，后面的3代表多少个sentinel认为master失效就才算失效，一般等于sentinel总数/2 + 1
@@ -413,7 +414,69 @@ sentinel monitor 随便起个master名字 主节点ip 端口  2
 
 # redis的集群模式
 
-- 集群模式描述：
+- 集群模式描述：redis集群是由多个主从节点群组成的，不需要哨兵也能完成节点移除和故障转移。
+
+```shell
+(1) redis.conf文件配置成集群模式
+cluster-enabled yes (启动集群模式)
+port 当前reids节点端口 （机器端口号设置）
+pidfile /var/run/redis_当前reids节点端口.pid (把pid进程好写入pidfile配置的文件)
+cluster-config-file nodes-当前reids节点端口.conf （集群节点信息文件）
+dir /usr/local/redis-cluster/当前reids节点端口/ (指定数据文件存放位置)
+
+(2) 用redis-cli创建集群，这里的1代表为每个主节点分配一个从节点，三主三从
+/usr/local/redis-5.0.3/src/redis-cli -a 你的密码 --cluster create  --cluster-replicas 1 节点1号:端口 节点2号:端口 节点3号:端口 节点4号:端口 节点5号:端口 节点6号:端口
+
+(3) 查看集群
+先随便找个节点进来，-c代表集群模式： /usr/local/reids-5.0.3/src/redis-cli -a 你的密码 -c -h 节点1号 -p 端口
+查看集群信息，返回集群节点数和当前状态等等: cluster info
+查看节点信息，返回主从关系，分配的槽号范围等等: cluster nodes
+
+(4) 关闭集群需要逐个节点关闭
+/usr/local/redis-5.0.3/src/redis-cli -a 你的密码 -c -h 节点1号 -p 端口 shutdown
+
+```
+
+```java
+(1) 使用jedisCluster来连接集群
+
+public class JedisClusterTest {
+    public static void main(String[] args) throws IOException {
+
+        JedisPoolConfig config = new JedisPoolConfig();
+        config.setMaxTotal(20);
+        config.setMaxIdle(10);
+        config.setMinIdle(5);
+
+        Set<HostAndPort> jedisClusterNode = new HashSet<HostAndPort>();
+        jedisClusterNode.add(new HostAndPort("192.168.0.61", 8001));
+        jedisClusterNode.add(new HostAndPort("192.168.0.62", 8002));
+        jedisClusterNode.add(new HostAndPort("192.168.0.63", 8003));
+        jedisClusterNode.add(new HostAndPort("192.168.0.61", 8004));
+        jedisClusterNode.add(new HostAndPort("192.168.0.62", 8005));
+        jedisClusterNode.add(new HostAndPort("192.168.0.63", 8006));
+
+        JedisCluster jedisCluster = null;
+        try {
+            //connectionTimeout：指的是连接一个url的连接等待时间
+            //soTimeout：指的是连接上一个url，获取response的返回等待时间
+            jedisCluster = new JedisCluster(jedisClusterNode, 6000, 5000, 10, "zhuge", config);
+            System.out.println(jedisCluster.set("cluster", "zhuge"));
+            System.out.println(jedisCluster.get("cluster"));
+        } catch (Exception e) {
+            e.printStackTrace();
+        } finally {
+            if (jedisCluster != null)
+                jedisCluster.close();
+        }
+    }
+}
+
+运行效果如下：
+OK
+zhuge
+```
+
 - 集群模式和哨兵模式比较：
 - 集群选举原理：
 - 集群脑裂数据丢失问题：
