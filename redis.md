@@ -422,8 +422,8 @@ sentinel monitor 随便起个master名字 主节点ip 端口  2
 （1） 集群模式下，批量操作多个key，保证落到同个槽
 mset {user1}:1:name xiaoming {user1}:1:age 18
 ```
-![image](https://user-images.githubusercontent.com/27798171/177272336-087ef8c0-2d0d-4ebc-a9f9-414e61d18cf0.png)
 
+![image](https://user-images.githubusercontent.com/27798171/177273509-bd88eedc-3168-4b78-9224-9bd6468937a6.png)
 
 ```shell
 (1) redis.conf文件配置成集群模式
