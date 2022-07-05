@@ -496,6 +496,43 @@ in-slaves-to-write 1
 ```
 
 # redis的分布式锁
+- redis的分布式锁描述：用setNx key value这个命令来申请加锁，加锁成功返回1，否则返回0。用del key来释放锁。【但如果程序处理异常或者挂了导致没释放锁，客户端就一直拿不到锁，导致死锁】。
+```
+127.0.0.1:6379> SETNX myLock 1
+(integer) 1     // 返回1加锁成功，返回0加锁失败
+127.0.0.1:6379> DEL myLock // 释放锁
+(integer) 1
+```
+- 怎么避免死锁？可以给key设置超时时间。【但这样可能会导致A加的锁，A业务处理太久，锁过期了，被B抢到了锁，导致两个客户端都抢到了锁，等A处理完，又把B的锁给释放了。】
+```
+127.0.0.1:6379> SET myLock 1 EX 60 NX
+OK
+```
+- 怎么避免锁被别人释放？可以在加锁的时候，value存唯一id，删除key的时候如果value是这个唯一id才可以删。【但查询和删除是两个指令，需要保证原子执行，可以用lua脚本处理】
+- 怎么避免还没处理完锁就过期的问题？可以用看门狗，就是开启一个守护线程，定时去检测这个锁的失效时间，如果锁快要过期了，操作共享资源还未完成，那么就自动对锁进行「续期」，重新设置过期时间。redisson已经封装好了。
+- 说一下redission的分布式锁怎么实现的？首先，redission会存储成hash类型到redis，key就是你要抢占的key，field为guid+当前线程的ID，value就是重入锁的次数。所以抢锁的时候，是通过执行一段包含是否不存在key然后hset和expire的lua脚本，抢不到锁就while循环尝试获取，抢到了锁就同时还会开启守护线程看门狗。redission其实支持可重入锁，抢锁的时候，执行的lua脚本里面还包含一个判断就是，如果已经存在这个key了，就把value+1，释放锁的时候就逐个-1，减到为0就删除锁。
+
+![image](https://user-images.githubusercontent.com/27798171/177285636-35a1e1a6-6357-4f5d-8815-1ef2e80d718d.png)
+
+![image](https://user-images.githubusercontent.com/27798171/177285678-4ca851de-7fe7-4b81-aec3-9f3ab037f4c6.png)
+
+``` java
+// 1.获取锁
+RLock lock = redisson.getLock("myLock");
+
+// 2.尝试加锁，且实现了锁续命，而且可重入，配置60s后过期，只尝试30s，没抢到内部会while循环尝试
+lock.lock(30,60, TimeUnit.SECONDS);
+
+try {
+   //3. 执行业务代码
+} finally {
+   //4.解锁
+   lock.unlock();
+}
+
+```
+- 
+
 # 缓存一致性问题
 # redis为什么快？
 # redis的线程模型
