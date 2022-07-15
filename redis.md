@@ -417,6 +417,7 @@ sentinel monitor 随便起个master名字 主节点ip 端口  2
 - reids把内存地址分成16384个哈希槽，每个节点负责一部分槽位，key通过crc16算法后再对16384取模来确定放哪个槽。每个节点都会存储所有节点的槽位信息，客户端来连接集群的时候，也会把槽位信息存储到客户端本地。如果集群节点有新增或缩减，两边槽位信息不一致的时候，比如客户端向一个节点发送的key的槽位不在这个节点，该节点发现后会向客户端发送一个携带正确节点的跳转地址，然后客户端就去往正确的节点发送指令，并纠正客户端本地的槽位信息缓存。
 - 当集群里面的其他主节点ping某个主节时，超过半数以上通讯超时，就认为这个主节点挂了，并自动启用它的从节点。如果他没有从节点可以用了，默认配置是整个集群都不能再提供服务了，当然也可以配置成部分key可用。
 - 集群为什么master至少三个master节点，并且推荐节点数为奇数：因为只有当半数以上的主节点觉得某个主节点挂了，才会重新选举新的主节点。如果只有两个主节点，一个主节点挂了，剩下的一个主节点怎么投票都没办法超过1的投票量。奇数个主节点相比偶数个节点在相同效果下可以节省一个节点，比如三个节点和四个节点相比，挂了一个主节点，三个节点的投票数可以超过1，四个节点的投票数可以超过2，都能选举。但是如果是挂了2个节点，三个节点的投票数没办法超过1，四个节点的投票数没办法超过2，都不能选举，那一样的效果，何不直接节省一个节点，直接奇数个节点就够了。
+
 - 集群模式下批量操作的支持：对于mset,mget命令默认只支持操作所有key的都落在同一个槽。如果非要支持的话，可以在key前面加上{固定前缀}，这样计算槽位的时候，只会拿括号里面的值，从而确保不同的key落到同一个槽。
 ```
 （1） 集群模式下，批量操作多个key，保证落到同个槽
@@ -426,6 +427,8 @@ mset {user1}:1:name xiaoming {user1}:1:age 18
 ![image](https://user-images.githubusercontent.com/27798171/177273509-bd88eedc-3168-4b78-9224-9bd6468937a6.png)
 
 ```shell
+集群模式怎么搭建：
+
 (1) redis.conf文件配置成集群模式
 cluster-enabled yes (启动集群模式)
 port 当前reids节点端口 （机器端口号设置）
@@ -433,16 +436,43 @@ pidfile /var/run/redis_当前reids节点端口.pid (把pid进程好写入pidfile
 cluster-config-file nodes-当前reids节点端口.conf （集群节点信息文件）
 dir /usr/local/redis-cluster/当前reids节点端口/ (指定数据文件存放位置)
 
-(2) 用redis-cli创建集群，这里的1代表为每个主节点分配一个从节点，三主三从
+(2)分别启动所有主从redis实例
+/usr/local/redis-5.0.3/src/redis-server redis.conf
+
+(3) 用redis-cli创建集群，这里的1代表为每个主节点分配一个从节点，三主三从
 /usr/local/redis-5.0.3/src/redis-cli -a 你的密码 --cluster create  --cluster-replicas 1 节点1号:端口 节点2号:端口 节点3号:端口 节点4号:端口 节点5号:端口 节点6号:端口
 
-(3) 查看集群
+(4) 查看集群
 先随便找个节点进来，-c代表集群模式： /usr/local/reids-5.0.3/src/redis-cli -a 你的密码 -c -h 节点1号 -p 端口
 查看集群信息，返回集群节点数和当前状态等等: cluster info
 查看节点信息，返回主从关系，分配的槽号范围等等: cluster nodes
 
-(4) 关闭集群需要逐个节点关闭
+(5) 关闭集群需要逐个节点关闭
 /usr/local/redis-5.0.3/src/redis-cli -a 你的密码 -c -h 节点1号 -p 端口 shutdown
+
+```
+
+```
+集群模式怎么水平扩展：
+
+(1) 写好新主从节点的redis.conf文件，和上面一样
+(2) 启动新主从节点的redis实例，和上面一样
+(3) 给集群新增一个主节点
+/usr/local/redis‐5.0.3/src/redis‐cli ‐a user ‐‐cluster add‐node 新增主节点:端口 已经存在的一个主节点:端口
+(4) 重新分配hash槽
+/usr/local/redis‐5.0.3/src/redis‐cli ‐a user ‐‐cluster reshard 已经存在的一个主节点:端口
+然后会询问分配多少个槽移动到新的节点里？600
+然后会询问从哪些主节点分一些槽出来凑成600个槽？all（代表从所有已存在的主节点抽部分槽，凑成600个槽）
+(5) 添加新从节点到集群中去，并配置为从节点
+加到集群里：/usr/local/redis‐5.0.3/src/redis‐cli ‐a user ‐‐cluster add‐node 新增从节点:端口 已经存在的一个主节点:端口
+用新从节点访问集群：/usr/local/redis‐5.0.3/src/redis‐cli ‐a user ‐c ‐h 新从节点ip ‐p 端口 
+在会话里指定作为谁的从节点 > cluster replicate 主节点id 
+
+(6) 删除一个从节点
+/usr/local/redis‐5.0.3/src/redis‐cli ‐a user ‐‐cluster del‐node 要删的从节点ip:端口 要删的从节点id
+(7) 删除主节点
+先把槽分配给的主节点：/usr/local/redis‐5.0.3/src/redis‐cli ‐a user ‐‐cluster reshard 要删的主节点ip:端口
+删除主节点：/usr/local/redis‐5.0.3/src/redis‐cli ‐a user ‐‐cluster del‐node 要删的主节点ip:端口 要删的主节点id
 
 ```
 
