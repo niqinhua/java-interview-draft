@@ -580,7 +580,13 @@ try {
 
 # redis的线程模型
 <a id="redisIoModel"/>
- 
+
+- Redis内部使用文件事件处理器，这个文件事件处理器是单线程的，所以Redis才叫做单线程的模型。
+- 文件事件处理器的结构包含 4 个部分:（1）多个socket （2）IO多路复用程序 (3)文件事件分派器。（4）事件处理器(连接应答处理器、命令请求处理器、命令回复处理器等)。
+- 客户端的socket向redis的server socket请求连接或者发送指令，serverSocket就会产生对应的事件。IO多路复用程序负责监听多个server socket，会将socket产生的事件放入队列中排队，事件分派器每次从队列中取出一个事件，把该事件交给对应的事件处理器进行处理。
+     
+![image](https://user-images.githubusercontent.com/27798171/180151302-d139c814-0762-45fc-b088-00e2fb45a153.png)
+
 # redis管道、事务、lua脚本
  
 - 管道
