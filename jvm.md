@@ -59,7 +59,7 @@ public class MyClassLoader extends ClassLoader {
 
 - 调用main方法后，类加载器什么时候触发加载的？
     - 首先java.exe调用底层的jvm.dll文件（C++代码）创建jvm
-    - 然后这个c++程序就会创建引导类的实例，引导类实例会调用java代码去加载Launcher类的实例，在Launcher的构造方法就会创建扩展类加载器和应用类加载器。
+    - 然后这个c++程序就会创建引导类的实例，然后引导类实例会调用java代码去加载Launcher类的实例，在Launcher的构造方法就会创建扩展类加载器和应用类加载器。
     - JVM默认使用Launcher的getClassLoader()方法返回的类加载器AppClassLoader的实例加载我们的应用程序，所以要加载一个类，就会先调用Launcher的getClassLoader()，再调用返回AppClassLoader的loadClass方法来完成类加载。
     - 然后C++程序那边看加载完了就会调用类的main方法。
     
