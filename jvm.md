@@ -19,7 +19,7 @@
 - 说下类加载器
     - 类加载器就是干类的加载、验证、准备、解析、初始化这些操作的
     - jdk提供的三个类加载器有引导类加载器(专门加载jre的lib下的核心类库)、它下面有个扩展类加载器(专门加载jre的lib的ext目录下的扩展类库)，扩展类加载器下面又有个应用类加载器(加载classpath下的类，我们自己写的类基本都是它来加载的)。
-    - 当然你也可以自定义类加载器，就是自己去写个类去继承抽象类ClassLoader，你可以去重写classLoader方法，也可以不重写保留他原先的双亲委派机制。然后主要是得重写findClass方法来控制自定义类加载器扫描扫描的类路径。除了引导类加载器以外，其他类加载器都得在parent的属性变量里面配置父类加载器，抽象类ClassLoader默认是父类加载器是应用类加载器。
+    - 当然你也可以自定义类加载器，就是自己去写个类去继承抽象类ClassLoader，你可以去重写classLoader方法，也可以不重写保留他原先的双亲委派机制。然后主要是得重写findClass方法来控制自定义类加载器扫描扫描的类路径。另外，除了引导类加载器以外，其他类加载器都得在parent的属性变量里面配置父类加载器，抽象类ClassLoader默认是父类加载器是应用类加载器。
 
 ```java
 自定义类加载器
@@ -101,10 +101,62 @@ public class Launcher {
 }
 ```
 
-- 说下双亲委派 
-    - 双亲委派就是，你看源码的classLoad方法就知道，他先自己检查这个类有没有 加载过，有就不加载了，直接返回这个Class对象，没有就先看看他有没有父加载 器，有就尝试给父加载器加载，没有父加载器就尝试自己加载。说白了就是先一层一 层网上询问有没有加载过啊，没加载过就一层一层往下尝试加载。但是双亲委派机制 是可以打破的，因为你可以重写classLoader方法嘛
+- 双亲委派 
+    - 什么是双亲委派？看源码的classLoad类的loadClass方法就知道，它先检查这当前类加载器（默认类加载器是应用程序类加载器）有没有加载过这个类，有就直接返回这个Class对象，没有就先看看当前类加载器有没有父加载器，有就尝试给父加载器加载，没有父加载器就给引导类加载器加载。还是加载不了的话就尝试自己加载。说白了就是先一层一层往上询问有没有加载过啊，没加载过就一层一层往下尝试加载。但是双亲委派机制是可以打破的，因为你可以重写classLoader方法嘛。
+    - 为什么要双亲委派机制？（1）可以防止核心类被随意篡改。（2）避免类的重复加载，父加载器加载过的类，子加载器没必要再加载。
+    - 什么是全盘委托机制？ 当一个类加载器装载一个类时，除非显示的使用另外一个ClassLoder，该类所依赖及引用的类也由这个类加载器载入。
 
+```java
+双亲委派机制源码
 
+public abstract class ClassLoader {
+    protected Class<?> loadClass(String name, boolean resolve) throws ClassNotFoundException
+    {
+        synchronized (getClassLoadingLock(name)) {
+            // 检查当前类加载器是否已经加载了该类
+            Class<?> c = findLoadedClass(name);
+            
+            //当前类加载器没加载过
+            if (c == null) {
+                long t0 = System.nanoTime();
+                try {
+                    if (parent != null) {
+                        //如果当前加载器父加载器不为空则委托父加载器加载该类
+                        c = parent.loadClass(name, false);
+                    } else {
+                        //如果当前加载器父加载器为空则委托引导类加载器加载该类
+                        c = findBootstrapClassOrNull(name);
+                    }
+                } catch (ClassNotFoundException e) {
+                    // ClassNotFoundException thrown if class not found
+                    // from the non-null parent class loader
+                }
+                
+                //父加载器和引导类加载器都加载不了
+                if (c == null) {
+                    // If still not found, then invoke findClass in order
+                    // to find the class.
+                    long t1 = System.nanoTime();
+                    
+                    //自己加载。（都会调用URLClassLoader的findClass方法在加载器的类路径里查找并加载该类）
+                    c = findClass(name);
+
+                    // this is the defining class loader; record the stats
+                    sun.misc.PerfCounter.getParentDelegationTime().addTime(t1 - t0);
+                    sun.misc.PerfCounter.getFindClassTime().addElapsedTimeFrom(t1);
+                    sun.misc.PerfCounter.getFindClasses().increment();
+                }
+            }
+            
+            //正常不会执行到，忽略
+            if (resolve) {
+                resolveClass(c);
+            }
+            return c;
+        }
+    }
+}    
+```
 # 内存模型
 
 
