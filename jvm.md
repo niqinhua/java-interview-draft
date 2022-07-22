@@ -1,15 +1,107 @@
 # 类加载
-### 类的生命周期？类加载的过程了解么？加载这一步主要做了什么事情？初始化阶段中哪几种情况必须对类初始化
-- 类的生命周期就是加载、验证、准备、解析、初始化、使用、卸载。不过解析可能是在初始化之前，或之后。在我们使用之前的这几个步骤都是类加载器去干的。类加载就是前面的五步：加载、验证、准备、解析、初始化。
+### 类的生命周期？类加载的过程了解么？初始化阶段中哪几种情况必须对类初始化
+- 类的生命周期就是加载、验证、准备、解析、初始化、使用、卸载。不过解析可能是在初始化之前，或之后。在我们使用之前的这几个步骤都是类加载器去干的。类加载就是前面的五步：加载、验证、准备、解析、初始化，由类加载器做的类加载。
     - 首先加载是懒加载方式，用到的时候jvm才会去加载这个字节码文件，做的工作就比如给这个类一个唯一名字、在方法区给这个类一个访问入口、把字节码文件的结构转成运行时的结构
-    - 验证就是验证文件格式 
+    - 验证就是验证字节码文件格式 
     - 准备就是给静态类变量分配内存且赋默认值。不是赋值，赋值是在初始化赋值的。
-    - 解析就是把常量池的符号引用转为直接引用
-    - 初始化主要就是调用类的static代码块、然后如果父类还没初始化，就先调用父类的初始化。发生初始化，一般是在new 一个类，或者通过类名调用静态方法，或者通 过类名拿到静态变量，或者反射类这些
-    - 使用就是
-    - 卸载就得满足这个类已经没有任何活的实例对象、加载该类的类加载器已经被回 收了，Class对象没有被引用，无法通过反射访问这个类。jvm自带的类加载器加载 的类是不会被卸载的，但是由我们自定义的类加载器加载的类是可能被卸载 的。
+    - 解析就是把常量池的符号引用转为直接引用。
+    - 初始化主要就是调用类的static代码块、对类的静态变量初始化为指定的值。初始化发生在：（1）如果父类还没初始化，就先调用父类的初始化。（2）new一个类（3）通过类名调用静态方法（4）通过类名拿到静态变量 （5）反射类。
+    - 使用没啥好说的，比如对new出来的对象进行各种操作。
+    - 卸载就得满足这个类已经没有任何活的实例对象、加载该类的类加载器已经被回收了，Class对象没有被引用且无法通过反射访问这个类。jvm自带的类加载器加载的类是不会被卸载的，但是由我们自定义的类加载器加载的类是可能被卸载的。
 
 ![image](https://user-images.githubusercontent.com/27798171/180156987-39ce0fa0-6051-4a0b-bf29-80adf473182c.png)
+
+
+### 啥是符号引用？啥是直接引用？啥是静态链接？啥是动态链接？
+- 比如一个main()方法，符号引用可以理解为字节码文件里面方法的引用，直接引用可以理解为指向内存的指针的或句柄。当在类加载期间，符号引用替换为直接引用是就是静态链接过程。
+- 动态链接是在程序运行期间完成的将符号引用替换为直接引用，
+
+### 类加载器和双亲委派机制
+- 说下类加载器
+    - 类加载器就是干类的加载、验证、准备、解析、初始化这些操作的
+    - jdk提供的三个类加载器有引导类加载器(专门加载jre的lib下的核心类库)、它下面有个扩展类加载器(专门加载jre的lib的ext目录下的扩展类库)，扩展类加载器下面又有个应用类加载器(加载classpath下的类，我们自己写的类基本都是它来加载的)。
+    - 当然你也可以自定义类加载器，就是自己去写个类去继承抽象类ClassLoader，你可以去重写classLoader方法，也可以不重写保留他原先的双亲委派机制。然后主要是得重写findClass方法来控制自定义类加载器扫描扫描的类路径。除了引导类加载器以外，其他类加载器都得在parent的属性变量里面配置父类加载器，抽象类ClassLoader默认是父类加载器是应用类加载器。
+
+```java
+自定义类加载器
+
+public class MyClassLoader extends ClassLoader {
+
+    private String classPath;
+
+    public AgentClassLoader(String classPath) {
+        this.classPath = classPath;
+    }
+
+    private byte[] loadByte(String name) throws Exception {
+        //省略，就是通过类名加载成byte[]
+    }
+
+    @Override
+    protected Class<?> findClass(String name) throws ClassNotFoundException {
+        try {
+            byte[] data = loadByte(name);
+            //defineClass将一个字节数组转为Class对象，这个字节数组是class文件读取后最终的字节数组。
+            return defineClass(name, data, 0, data.length);
+        } catch (Exception e) {
+            e.printStackTrace();
+            throw new ClassNotFoundException();
+        }
+    }
+}
+
+    public static void main(String args[]) throws Exception {
+        //初始化自定义类加载器，会先初始化父类ClassLoader，父类构造器会把自定义类加载器的父加载器设置为AppClassLoader
+        MyClassLoader classLoader = new MyClassLoader ("D:\\test");
+        Class clazz = classLoader.loadClass("com.cry.User");
+        Object obj = clazz.newInstance();
+    }
+```
+
+- 一个main方法怎么执行的？
+    - 首先java.exe调用底层的jvm.dll文件（C++代码）创建jvm
+    - 然后这个c++程序就会创建引导类的实例，引导类实例会调用java代码去加载Launcher类的实例，在Launcher的构造方法就会创建扩展类加载器和应用类加载器。
+    - JVM默认使用Launcher的getClassLoader()方法返回的类加载器AppClassLoader的实例加载我们的应用程序，所以要加载一个类，就会先调用Launcher的getClassLoader()，再调用返回AppClassLoader的loadClass方法来完成类加载。
+    - 然后C++程序那边看加载完了就会调用类的main方法。
+    
+```java
+Launcher源码
+
+public class Launcher {
+    private ClassLoader loader;
+
+    //Laucher的构造方法
+    public Launcher() {
+        Launcher.ExtClassLoader var1;
+        try {
+            //1. 构造扩展类加载器，在构造的过程中将其父加载器设置为null
+            var1 = Launcher.ExtClassLoader.getExtClassLoader();
+        } catch (IOException var10) {
+            throw new InternalError("Could not create extension class loader", var10);
+        }
+
+        try {
+            //2. 构造应用类加载器，在构造的过程中将其父加载器设置为ExtClassLoader， 
+            this.loader = Launcher.AppClassLoader.getAppClassLoader(var1);
+        } catch (IOException var9) {
+            throw new InternalError("Could not create application class loader", var9);
+        }
+
+        Thread.currentThread().setContextClassLoader(this.loader);
+        ......
+        }
+
+    }
+
+    public ClassLoader getClassLoader() {
+        // 3.Launcher的loader属性值是AppClassLoader，我们一般都是用这个类加载器来加载我们自己写的应用程序
+        return this.loader;
+    }
+}
+```
+
+- 说下双亲委派 
+    - 双亲委派就是，你看源码的classLoad方法就知道，他先自己检查这个类有没有 加载过，有就不加载了，直接返回这个Class对象，没有就先看看他有没有父加载 器，有就尝试给父加载器加载，没有父加载器就尝试自己加载。说白了就是先一层一 层网上询问有没有加载过啊，没加载过就一层一层往下尝试加载。但是双亲委派机制 是可以打破的，因为你可以重写classLoader方法嘛
 
 
 # 内存模型
