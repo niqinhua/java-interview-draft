@@ -229,13 +229,44 @@ public abstract class ClassLoader {
 ![image](https://user-images.githubusercontent.com/27798171/180729096-ab8744be-4cb4-4394-8d8f-9dcf1869742b.png)
 
 # GC
-
-### 怎么判断对象是不是垃圾
+### 是不是垃圾判断
+#### 怎么判断对象是不是垃圾
 - 引用计数法：就是在对象中添加一个引用计数器，有一个地方引用它就加 一，少一个引用减一，一直减到0，就说明这个对象是垃圾。但是弊端就是不能处理循环依赖。
 - 可达性分析：就是先确定所有叫做GCRoot的对象作为起始节点，向下一层一层搜索引用关系，如果一个对象到GCRoot没有任何引用链，就说明这个对象是垃圾。
     - 这里的引用关系，包括强软弱虚四种引用，正常我们用的都是强引用。（展开描述参考[强软弱性引用](#reference)）
     - 可以作为GCRoot的对象包括：虚拟机栈中的本地变量表中引用的对象、本地方法栈中的引用对象、方法区的引用类型的静态变量和字符串常量池引用的对象、 被synchronize持有的对象、jvm的内部引用(比如系统类加载器、class对象、异常 类对象)
-    - 不过要注意的一点，就是就算通过可达性分析算出来某个对象是垃圾，他也不一定会被回收，如果他在finalize方法中又给这个对象加了引用链到GCRoot，GC之前可能会调用这个方法，那他就不会被回收。只是可能，因为这个对象可能在执行finalize方法前，可能就被回收掉了，finalize方法是不太可靠的。
+    - 不过要注意的一点，就是就算通过可达性分析算出来某个对象是垃圾，他也不一定会被回收，如果他在finalize方法中又给这个对象加了引用链到GCRoot，GC之前可能会调用这个方法，那他就不会被回收。只是可能，因为这个对象可能在执行finalize方法前，可能就被回收掉了，finalize方法是不太可靠的，也不建议用。
+
+#### 怎么判断类是不是无用的类
+方法区主要回收的是无用的类，那么如何判断一个类是无用的类呢? 
+
+- 这个类已经没有任何活的实例对象
+- 加载该类的类加载器已经被回收了
+- Class对象没有被引用且无法通过反射访问这个类
+
+jvm自带的类加载器加载的类是不会被卸载的，但是由我们自定义的类加载器加载的类是可能被卸载的。
+
+#### 强软弱虚引用
+- 我们平时 a = new A()用的就是强引用。这种对象只要与GCRoot有引用链，就不会被回收
+- 软引用就是要OOM之前就会被回收。 
+- 弱引用就是GC的时候一定会被回收。 ThreadLocal中就使用了WeakReference来避免内存泄漏。
+- 虚引用就是，也是GC的时候一定会被回收，但是回收的时候会收到一个通知。必须配合引用队列使用，当垃圾回收器准备回收一个对象时，如果发现它还有虚引用，就会在回收对象之前，把这个虚引用加入到与之关联的引用队列中。自己的程序可以写如果发现某个虚引用已经被加入到引用队列，那么就可以在所引用的对象的内存被回收之前采取必要的行动，比如打印点回收日志。虚引用主要用来跟踪对象被垃圾回收的活动。
+
+```java
+（1）强引用
+public static User user = new User();
+（2）软引用
+public static SoftReference<User> user = new SoftReference<User>(newUser());
+（3）弱引用
+public static WeakReference<User> user = new WeakReference<User>(newUser());
+（4）虚引用
+ReferenceQueue referenceQueue  = new ReferenceQueue()
+PhantomReference<byte[]> reference = new PhantomReference<byte[]>(new byte[1], referenceQueue);
+referenceQueue.poll()!=null循环获取拿到gc事件
+```
+
+### 垃圾回收算法
+
 
 # 性能调优
 ### 常用jvm参数
