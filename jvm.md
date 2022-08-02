@@ -278,7 +278,7 @@ referenceQueue.poll()!=null循环获取拿到gc事件
 |新生代|Serial|简单高效|stop the world|-XX:+UseSerialGC|单线程、复制算法|内存较小的client模式下首选的新生代垃圾收集器|jdk1|无
 |新生代|ParNew|多cpu环境下，比Serial效果好|stop the world、cpu核数少时线程切换的开销使得没有serial性能好|‘-XX:+UseParNewGC或’-XX:+UseConcMarkSweepGC|多线程并行、复制算法|server首选、jdk6之前，老年代用CMS，新生代只能用Serial或ParNew|？|无|
 |新生代|Parallel Scavenge或称throughput收集器|高吞吐量、带有GC Ergonomics（gc自适应调节策略，使用-XX:+UseAdaptiveSizePolicy开启），无需手工指定新生代大小，survivor比例，晋升老年代对象的年龄等参数。|stop the world；不适合响应时间要求高的应用|‘-XX:+UseParallelGC或-XX:+UseParallelOldGC|多线程、复制算法|关注高吞吐量并且响应性要求不高的应用|？|UseParallelGC时老年代为SerialOldGC，UseParallelOldGC时老年代为ParallelOldGC|
-|老年代|Serial Old|简单高效|stop the world|‘-XX:+UseSerialGC或’-XX:+UseParNewGC|单线程、标记整理|client首选，搭配ParNew使用，或者在jdk6之前搭配Parallel Scavenge使用，也可在server模式下作为CMS的备胎（CMS可能会因为浮动垃圾而发生concurrent mode failure的错误，此时需要serial old上位）|？|无|
+|老年代|Serial Old|简单高效|stop the world|-XX:+UseSerialOldGC|单线程、标记整理|client首选，搭配ParNew使用，或者在jdk6之前搭配Parallel Scavenge使用，也可在server模式下作为CMS的备胎（CMS可能会因为浮动垃圾而发生concurrent mode failure的错误，此时需要serial old上位）|？|无|
 |老年代|Parallel Old|高吞吐量|stop the world，不适合响应时间要求高的应用|-XX:+UseParallelOldGC|多线程并行，标记整理|server模式默认选项。搭配Parallel Scavenge，关注吞吐量及cpu资源敏感的场合|jdk6|该选项自动设置 -XX:+UseParallelGC选项|
 |老年代|CMS|停顿时间短，响应性高|对cpu资源非常敏感；无法处理浮动垃圾，可能会出现Concurrent mode failure；标记清除算法容易产生垃圾碎片|-XX:+UseConcMarkSweepGC|多线程并发，标记清除|要求高响应性的互联网站或BS服务端|jdk5|打开此开关参数后，使用ParNew+CMS+Serial Old收集器组|
 |老年代|G1|当内存很大时，停顿时间高，并且吞吐量高|内存较小时性能没有CMS好|-XX:++UseG1GC|使用空间整合算法，堆被划分成多个连续的大小相等的region，新生代老年代物理上不再隔离，新生代老年代各自在内部也不再要求连续。|内存大于6G的高并发低停顿应用|jdk7|可能会在java9时作为默认GC|
