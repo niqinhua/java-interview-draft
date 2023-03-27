@@ -30,7 +30,42 @@
 - mysql最左前缀优化原理就是因为跳过第一个字段，第二个字段是无序的，所以没办法用，只能整个表查询。
 
 # explain详解与使用
+- partitions：分区
+- filtered：rows*filtered/100估算出将要和explain中前一个表进行连接的行数（前一个表指id值比当前表id值小的表）
+- id：有几个select就有几个id，id越大执行优先级越高，id相同则从上往下执行，id为null则最后执行
+- select type：表示对应行是简单还是复杂的查询。
+  - primary：最外层的select；
+  - subquery：select中的子查询；
+  - derived：from中的子查询；mysql会把结果放在一个临时表中，也叫派生表
+  - union：union后面的select
+- type：mysql如何查找表中的行，从好到差：system>const>req_ref>ref>range>index>all，一般达到range以上，最好达到ref
+  - null：在优化阶段分解查询语句，在执行阶段不用遍历表或索引就能直接确定。（比如select min(id) from 表） 
+  - const： where后面的字段，用到了primary或者唯一索引，只有一条匹配数据。system是const的特例，表里只有一条数据。
+  - req_ref: 被关联表的on的过滤字段是primary或者唯一索引（A left join B，B是被关联表，A是主表）
+  - ref：就是用到了索引，筛选出来的条件会有多条。对应简单查询，where后面的字段用的是普通索引；对应关联查询，主表的on过滤字段只命中唯一索引的部分字段。
+  - range：用到了索引，但是是范围查找的。用到了in，between，>,<
+  - index：扫描整个二级索引拿到结果。（比如select id,name from 表，name有二级索引）
+  - all：扫描整个聚簇索引
+- possible key：可能使用哪些索引来查询。
+- key：最终用到的索引
+- key_len:在索引里使用的字节数。可以算出索引用了哪些列。（char(n)=n字节长度，varchar（utf-8 n）=3n+2字节长度 （2用来存字符串长度），int=4字节长度） 
+- ref：在key列记录的索引中，表查找值所用到的列或常量。比如：const（常量）、字段名
+- rows：估计要读取或检测的行数
+- extra：
+  - using index：使用覆盖索引，就是包括where或者select后面的字段都可以直接从索引中获取
+  - using where：用了where，并且where或者select后面的列未被索引覆盖
+  - using index condition：查询的列不完全被索引覆盖，比如where后面是范围查询某个索引字段
+  - using temporary：需要创建一张临时表来处理查询，比如遇到没有索引的数据（select distinct name from 表）
 
 # 常见索引优化原则
-
+- 全值匹配
+- 最左前缀法则
+- 不在索引列上做函数、计算、类型转换处理
+- 所有a列是范围，b列会失效
+- 尽量使用覆盖所有，就是查询列在索引列中，减少select *
+- 使用!=会导致全表扫描
+- is null 或者is not null一般情况走不了索引
+- like "%aa"，会导致索引失效
+- 少用or或者in，不一定会走索引
+- 范围查询不一样会走索引
 # 
