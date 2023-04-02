@@ -101,10 +101,15 @@ reset master 清空所有binlog日志
 /mysql/bin/mysqlbinlog --no-defaults 某个binlog文件 | mysql -uroot -p 密码
 
 # 恢复某个binlog指定位置的数据
-/mysql/bin/mysqlbinlog  --start-position=1609 --stop-position=1822  | mysql -uroot -p 密码
+/mysql/bin/mysqlbinlog  --start-position=1609 --stop-position=1822 | mysql -uroot -p 密码
 
 # 恢复指定时间内binlog指定位置的数据
-/mysql/bin/mysqlbinlog --no-defaults 某个binlog文件 --start-date="2012-10-15 16:30:00" --stop-date="2012-10-15 17:00:00" | mysql -uroot -p 密码
+/mysql/bin/mysqlbinlog --no-defaults 某个binlog文件  --start-date="2012-10-15 16:30:00" --stop-date="2012-10-15 17:00:00" | mysql -uroot -p 密码
 ```
 
-#
+# 索引下推优化详解
+# 优化器索引选择
+# 索引优化order by与group by
+# using filesort 文件排序详解
+# 索引设计原则与实战
+
