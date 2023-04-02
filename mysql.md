@@ -68,13 +68,43 @@
 - like "%aa"，会导致索引失效
 - 少用or或者in，不一定会走索引
 - 范围查询不一样会走索引
-# mysql的内部组件结.
+# mysql的内部组件结构
 <img width="711" alt="截屏2023-04-02 下午5 52 50" src="https://user-images.githubusercontent.com/27798171/229345624-de795209-3fb2-46d1-9247-05083894c766.png">
+
 - 分为server层和引擎层，客户通首先通过server层的连接器进行连接，如果开启了server层的缓存，会先从缓存获取，这个缓存的key就是sql语句，如果缓存没有，就依次通过server层的词法分析器，优化器，执行器。执行器会去调用引擎接口查询数据。
-- server层的缓存很鸡肋，因为一旦修改了数据，缓存就会被清空，再查询的时候会去磁盘查完数据再放到缓存里面，所以只能适用于配置表或者字段表这种不经常变的数据。
+- server层的缓存：很鸡肋，因为一旦修改了数据，缓存就会被清空，再查询的时候会去磁盘查完数据再放到缓存里面，所以只能适用于配置表或者字段表这种不经常变的数据。
+
 ```
 my.cnf
-query_cache_type = 0关闭 1开启 2 遇到select SQL_CACHE * from才走缓存；
-show global variable
+query_cache_type = 0关闭 1开启 2遇到select SQL_CACHE * from才走缓存；
+show status like “%Qcache%”  //查看运行的缓存信息
 ```
-# 
+- 词法分析器：分6个步骤完成对sql语句的分析：
+  - 词法分析
+  - 语法分析
+  - 语义分析
+  - 构造执行树
+  - 生成执行计划
+  - 计划的执行 
+
+<img width="1209" alt="截屏2023-04-02 下午8 05 37" src="https://user-images.githubusercontent.com/27798171/229351698-baabe3b7-db11-4306-aad1-44313839af34.png">
+
+- binlog：是server层实现的二进制日志。会追加记录curd操作，记录格式分为statement-记录执行的sql、row-记录操作后的行数据（推荐）、mixed混合模式
+```
+flush logs 建个新的binlog日志，新的日志会放到这里面，老的不动
+reset master 清空所有binlog日志
+
+# 查询某个binlog日志
+/mysql/bin/mysqlbinlog --no-defaults 某个binlog文件
+
+# 恢复某个binlog的数据
+/mysql/bin/mysqlbinlog --no-defaults 某个binlog文件 | mysql -uroot -p 密码
+
+# 恢复某个binlog指定位置的数据
+/mysql/bin/mysqlbinlog  --start-position=1609 --stop-position=1822  | mysql -uroot -p 密码
+
+# 恢复指定时间内binlog指定位置的数据
+/mysql/bin/mysqlbinlog --no-defaults 某个binlog文件 --start-date="2012-10-15 16:30:00" --stop-date="2012-10-15 17:00:00" | mysql -uroot -p 密码
+```
+
+#
