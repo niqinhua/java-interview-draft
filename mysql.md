@@ -68,4 +68,13 @@
 - like "%aa"，会导致索引失效
 - 少用or或者in，不一定会走索引
 - 范围查询不一样会走索引
+# mysql的内部组件结.
+<img width="711" alt="截屏2023-04-02 下午5 52 50" src="https://user-images.githubusercontent.com/27798171/229345624-de795209-3fb2-46d1-9247-05083894c766.png">
+- 分为server层和引擎层，客户通首先通过server层的连接器进行连接，如果开启了server层的缓存，会先从缓存获取，这个缓存的key就是sql语句，如果缓存没有，就依次通过server层的词法分析器，优化器，执行器。执行器会去调用引擎接口查询数据。
+- server层的缓存很鸡肋，因为一旦修改了数据，缓存就会被清空，再查询的时候会去磁盘查完数据再放到缓存里面，所以只能适用于配置表或者字段表这种不经常变的数据。
+```
+my.cnf
+query_cache_type = 0关闭 1开启 2 遇到select SQL_CACHE * from才走缓存；
+show global variable
+```
 # 
