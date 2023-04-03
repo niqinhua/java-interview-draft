@@ -56,6 +56,7 @@
   - using where：用了where，并且where或者select后面的列未被索引覆盖
   - using index condition：查询的列不完全被索引覆盖，比如where后面是范围查询某个索引字段
   - using temporary：需要创建一张临时表来处理查询，比如遇到没有索引的数据（select distinct name from 表）
+  - using filesort: 用外部排序而不是索引排序，数据小从内存排序，否则从磁盘排序。
 
 # 常见索引优化原则
 - 全值匹配
