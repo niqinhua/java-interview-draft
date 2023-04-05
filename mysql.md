@@ -68,7 +68,7 @@
 - is null 或者is not null一般情况走不了索引
 - like "%aa"，会导致索引失效
 - 少用or或者in，不一定会走索引
-- 范围查询不一样会走索引
+- 范围查询不一定会走索引
 # mysql的内部组件结构
 <img width="711" alt="截屏2023-04-02 下午5 52 50" src="https://user-images.githubusercontent.com/27798171/229345624-de795209-3fb2-46d1-9247-05083894c766.png">
 
@@ -107,8 +107,26 @@ reset master 清空所有binlog日志
 # 恢复指定时间内binlog指定位置的数据
 /mysql/bin/mysqlbinlog --no-defaults 某个binlog文件  --start-date="2012-10-15 16:30:00" --stop-date="2012-10-15 17:00:00" | mysql -uroot -p 密码
 ```
+# 索引走不走？
+假设index(a,b,c)
+
+- where a=3 and b>4 and c=5 【肯定使用到了a和b索引。 】
+- where a=3 and b>=4 and c=5 【mysql索引内部优化：使用到了a和b索引，有可能用到c索引】
+- where a=3 and b like “kk%” and c=5  【肯定使用了a和b和c索引。kk%相当于常量，不管表大表小】
+- where a=3 and b like “k%kk%” and c=5 【肯定使用了a和b和c索引。k%kk%相当于常量，不管表大表小】
+- where a=3 and b like “%kk” and c=5 【肯定使用了a索引，%kk相当于范围】
+- where a>= 5 and b=4 and c=5 【mysql索引内部优化：如果联合索引第一个字段用了范围，就不走索引】
+- where a in (4,5,6) and b=4 and c=5 【mysql索引内部优化：数据量大走索引a，b，c；数据量小不走索引】
+- where (a=4 or a=5) and b=4 and c=5 【mysql索引内部优化：数据量大走索引a，b，c；数据量小不走索引】
+
 
 # 索引下推优化详解
+假设index(a,b,c), where a like “kk%” and b=4 and c=5, 使用到了a，b，c索引，为什么a like "kk%"相当于常量？
+
+- 索引下推是5.6版本之后引入的，5.6之前在遇到a=kk%的时候，先根据a把结果集过滤出来，然后根据叶子结点主键id回表去聚簇索引拿出来所有的结果集，再根据b和c条件去过滤
+- 5.6以后每过滤出来一条a like “kk%”的数据，同时还会去比较一下b和c是否满足条件，如果符合才把id拿出来
+- 那为什么范围查询不做索引下推？可能是因为like确定出来的结果大多时候会比范围查询少
+
 # 优化器索引选择
 # 索引优化order by与group by
 # using filesort 文件排序详解
