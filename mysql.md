@@ -130,11 +130,140 @@ reset master 清空所有binlog日志
 - 那为什么范围查询不做索引下推？可能是因为like确定出来的结果大多时候会比范围查询少
 # trace工具
 ```
+SET SESSION OPTIMIZER_TRACE="enabled=on",END_MARKERS_IN_JSON=on;
+
+先写个自己的sql，后面带这个sql，就能看到trade执行计划：
+select * from information_schema.optimizer_trace
+
+第一阶段：sql准备阶段，格式化sql
+第二阶段：sql优化
+第三阶段：预估表的访问成本
+ "rows_estimation": [
+              {
+                "table": "`emp`",
+                "range_analysis": {
+                  "table_scan": {
+                  	/* 全表扫描预估扫描651300条记录，花费是227957*/
+                    "rows": 651300,
+                    "cost": 227957
+                  },
+                  "potential_range_indexes": [
+                  	/* 可能用到的索引 */
+                    {
+                 	  /* 主键索引 =》 不适用*/
+                      "index": "PRIMARY",
+                      "usable": false,
+                      "cause": "not_applicable"
+                    },
+                    {
+                    	/* 联合索引idx_name_age_job =》 适用*/
+                      "index": "idx_name_age_job",
+                      "usable": true,
+                      "key_parts": [
+                        "name",
+                        "age",
+                        "job",
+                        "id"
+                      ] /* key_parts */
+                    }
+                  ] /* potential_range_indexes */,
+                  "best_covering_index_scan": {
+                  	/* 最优选择，使用联合索引idx_name_age_job */
+                    "index": "idx_name_age_job",
+                    "cost": 73074,
+                    "chosen": true
+                  } /* best_covering_index_scan */,
+                  "setup_range_conditions": [
+                  ] /* setup_range_conditions */,
+                  "group_index_range": {
+                    "chosen": false,
+                    "cause": "not_group_by_or_distinct"
+                  } /* group_index_range */,
+                  "skip_scan_range": {
+                    "potential_skip_scan_indexes": [
+                      {
+                        "index": "idx_name_age_job",
+                        "usable": false,
+                        "cause": "prefix_not_const_equality"
+                      }
+                    ] /* potential_skip_scan_indexes */
+                  } /* skip_scan_range */,
+                  "analyzing_range_alternatives": {
+                    "range_scan_alternatives": [
+                      {
+                        "index": "idx_name_age_job",
+                        "ranges": [
+                          "hu <= name <= hu AND 20 < age"
+                        ] /* ranges */,
+                        "index_dives_for_eq_ranges": true,
+                        "rowid_ordered": false,
+                        "using_mrr": false,
+                        "index_only": true,
+                        "rows": 1,
+                        "cost": 1.11,
+                        "chosen": true
+                      }
+                    ] /* range_scan_alternatives */,
+                    "analyzing_roworder_intersect": {
+                      "usable": false,
+                      "cause": "too_few_roworder_scans"
+                    } /* analyzing_roworder_intersect */
+                  } /* analyzing_range_alternatives */,
+                  "chosen_range_access_summary": {
+                    "range_access_plan": {
+                      "type": "range_scan",
+                      "index": "idx_name_age_job",
+                      "rows": 1,
+                      "ranges": [
+                        "hu <= name <= hu AND 20 < age"
+                      ] /* ranges */
+                    } /* range_access_plan */,
+                    "rows_for_plan": 1,
+                    "cost_for_plan": 1.11,
+                    "chosen": true
+                  } /* chosen_range_access_summary */
+                } /* range_analysis */
+              }
+            ] /* rows_estimation */
+
 
 ```
-# 优化器索引选择
-
 # 索引优化order by与group by
+假设index(a,b,c)
+
+- where a=3 and c=4 order by b 【肯定使用到了a和b索引。 】
+- where a=3 order by b,c 【肯定使用到了a、b、c索引。 】
+- where a=3 order by c,b 【肯定使用到了a索引。 】
+- where a=3 order by b asc, c dsec 【肯定使用到了a索引。mysql8版本和以上有降序索引支持查询 】
+- where a in （3，4） order by b,c 【b和c肯定不会走索引，mysql索引内部优化：a不一定走索引 】
+- select * from 表 where a > 3 order by a 【mysql索引内部优化：大概率不走索引，因为涉及到回表查询别的列表。 】
+- select * from 表 order by a 【ysql索引内部优化：大概率不走索引，因为涉及到回表查询别的列表。】
+- select a, b, c from 表 where a > 3 order by a 【mysql索引内部优化：覆盖索引，肯定走a，b，c索引 ，不需要回表】
+
+
+总结
+- MysQL支持两种方式的排序ilesor和index， Using index是指MysQL扫描索引本身完成排序。index效率高，filesor效率低。
+- order by满足两种情況会使用Using index。
+  - order by语句使用索引最左前列。
+  - 使用where子句与order by子句条件列组合满足素引最左前列。
+- 尽量在素引1列上完成排序，遵循索引建立（索引创建的顺序）时的最左前缀法则。
+- 如果order by的条件不在索引列上，就会产生Using filesort.
+- 能用覆盖索引尽量用覆盖索引
+- group by与order by很类似，其实质是先排序后分组，遵照索引创建顺序的最左前级法则。对于group by的优化如果不需要排序的可以加上order by nul禁止排序。注意，where高于having，能写在where中的限定条件就不要去having限定了。
+
 # using filesort 文件排序详解
-# 索引设计原则与实战
+filesor文件排序方式
+- 单路排序：是-次性取出满足条件行的所有字段，然后在sort buffer中进行排序;
+  - 比如 没有索引，select a,b,c,d,e where a=3 order by b,c;会根据where条件查询满足的行，每行的a,b,c,d,e一起进入到排序缓存中根据b,c排序。
+  - 用trace工具可以看到sortmode信息里显示<sort_key, additional_fields>或者<sort_key, packed_additional_fields>
+- 双路排序（又叫回表排序模式）：是首先根据相应的条件取出相应的排序字段和可以直接定位行数据的行ID，然后在 sort buffer 中进行排序，排序完后需要再次取回其它需要的字段。
+  - 比如 没有索引，select a,b,c,d,e where a=3 order by b,c;会根据where条件查询满足的行，每行的id，b,c一起进入到排序缓存中根据b,c排序,再根据id回表聚簇索引拿到d、e字段
+  - 用tace土具可以看到sort mode信息里显示<sort_key,rowid>
+- MySQL 通过比较系统变量max_lenath_for_sort_data(默认1024字节）的大小和需要查询的字段总大小来判断使用哪种排序模式。如果字段的总长度小于max_lenath_for_sort_data，那么使用单路排序模式；如果字段的总长度大于max_lenath_for_sort_data，那么使用双路排序模式。
+
+# 分页查询优化详解
+# 表join关联原理详解与优化
+# 表count查询优化
+# 阿里巴巴mysql规范解读
+# mysql 数据类型选择分析
 
