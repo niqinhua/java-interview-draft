@@ -297,5 +297,7 @@ count(*)≈count(1)>count(索引字段)>count(id)>count(无索引字段)
 - count(id)最终mysql如果有辅助索引，一定会优先走辅助索引，因为辅助索引比主键索引存储数据更少，检索性能更高
 - 如果表很大，不管用哪种count，性能都会差
 # mysql 数据类型选择分析
+![搜狗截图20230422143940](https://user-images.githubusercontent.com/27798171/233767423-89a22ab3-479d-4d0f-8b24-db793826e802.png)
 
+![搜狗截图20230422144630](https://user-images.githubusercontent.com/27798171/233767747-d8c61e44-03e1-4c91-8e2b-3d4e2c4a535d.png)
 
