@@ -114,7 +114,7 @@ reset master 清空所有binlog日志
 - where a=3 and b>=4 and c=5 【mysql索引内部优化：使用到了a和b索引，有可能用到c索引】
 - where a=3 and b like “kk%” and c=5  【肯定使用了a和b和c索引。kk%相当于常量，不管表大表小】
 - where a=3 and b like “k%kk%” and c=5 【肯定使用了a和b和c索引。k%kk%相当于常量，不管表大表小】
-- where a=3 and b like “%kk” and c=5 【肯定使用了a索引，%kk相当于范围】
+- where a=3 and b like “%kk” and c=5 【可能使用了a索引，%kk相当于范围】
 - where a>= 5 and b=4 and c=5 【mysql索引内部优化：如果联合索引第一个字段用了范围，大概率不走索引】
 - where a> “aa” 【mysql索引内部优化：大概率不走索引】
 - where a> “zz” 【mysql索引内部优化：大概率走索引】
@@ -123,7 +123,7 @@ reset master 清空所有binlog日志
 
 
 # 索引下推优化详解
-假设index(a,b,c), where a like “kk%” and b=4 and c=5, 使用到了a，b，c索引，为什么a like "kk%"相当于常量？
+假设index(a,b,c), where a like “kk%” and b=4 and c=5, 可能使用到了a，b，c索引，为什么a like "kk%"相当于常量？
 
 - 索引下推是5.6版本之后引入的，5.6之前在遇到a=kk%的时候，先根据a把结果集过滤出来，然后根据叶子结点主键id回表去聚簇索引拿出来所有的结果集，再根据b和c条件去过滤
 - 5.6以后每过滤出来一条a like “kk%”的数据，同时还会去比较一下b和c是否满足条件，如果符合才把id拿出来
