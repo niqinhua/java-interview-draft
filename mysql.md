@@ -14,18 +14,15 @@
 ```text
 比如索引是bigint，占8byte，一个地址是6Byte，那么一个非叶子节点可以存储1170个元素，而叶子节点存的data一般不超过1k，那一个叶子节点就可以存储16个数据，那三层的树，就可以存储1170*1170*16=两千多万
 ```
-# myisam和innodb、聚簇索引、稀疏索引是什么
-### myisam
-- 表的底层存储是frm（表结构信息）、myd（data）、myi（index）三个文件，myd存的是数据，myi存的是索引的B+树。索引和数据是分开存储，这种叫非聚簇索引。索引的B+树的叶子节点的data存的是数据的某一个行的地址。
+### 聚簇索引、稀疏索引是什么
+- myisam的索引结构：表的底层存储是frm（表结构信息）、myd（data）、myi（index）三个文件，myd存的是数据，myi存的是索引的B+树。索引和数据是分开存储，这种叫非聚簇索引。索引的B+树的叶子节点的data存的是数据的某一个行的地址。
+- innodb的索引结构：表的底层存储是frm（表结构信息）、ibd（data+index）三个文件。ibd只会有一个聚簇索引，就是数据和索引在一起的B+树，数据存在B+树的叶子节点。但是普通索引其实还是非聚簇索引，叶子节点的data存的是主键值，存主键的好处是保证数据一致性和节省存储空间。
 
-### innodb
-- 表的底层存储是frm（表结构信息）、ibd（data+index）三个文件。ibd只会有一个聚簇索引，就是数据和索引在一起的B+树，数据存在B+树的叶子节点。但是普通索引其实还是非聚簇索引，叶子节点的data存的是主键值，存主键的好处是保证数据一致性和节省存储空间。
-
-# 为什么推荐使用整型自增索引做主键
+### 为什么推荐使用整型自增索引做主键
 - 因为如果是字符串，索引查找的就得对字符串索引的每个字符一一比较，非常耗时。
 - 如果不是自增的话，往B+树节点的中间位置插入一个数的时候，可能会导致节点分裂、或者做个树平衡。如果是自增的话，就会再往后面开一个节点，不影响原来的节点。
 
-# 联合索引底层数据结构，mysql最左前缀优化原理
+### 联合索引底层数据结构，mysql最左前缀优化原理
 - 先按照第一个字段排好序，再按照第二个字段排好序，再按照第三个字段排好序
 - mysql最左前缀优化原理就是因为跳过第一个字段，第二个字段是无序的，所以没办法用，只能整个表查询。
 
@@ -70,7 +67,7 @@
 - 少用or或者in，不一定会走索引
 - 范围查询不一定会走索引
 # mysql的内部组件结构
-<img width="711" alt="截屏2023-04-02 下午5 52 50" src="https://user-images.githubusercontent.com/27798171/229345624-de795209-3fb2-46d1-9247-05083894c766.png">
+<img width="711"  src="https://user-images.githubusercontent.com/27798171/229345624-de795209-3fb2-46d1-9247-05083894c766.png">
 
 - 分为server层和引擎层，客户通首先通过server层的连接器进行连接，如果开启了server层的缓存，会先从缓存获取，这个缓存的key就是sql语句，如果缓存没有，就依次通过server层的词法分析器，优化器，执行器。执行器会去调用引擎接口查询数据。
 - server层的缓存：很鸡肋，因为一旦修改了数据，缓存就会被清空，再查询的时候会去磁盘查完数据再放到缓存里面，所以只能适用于配置表或者字段表这种不经常变的数据。
@@ -88,7 +85,7 @@ show status like “%Qcache%”  //查看运行的缓存信息
   - 生成执行计划
   - 计划的执行 
 
-<img width="1209" alt="截屏2023-04-02 下午8 05 37" src="https://user-images.githubusercontent.com/27798171/229351698-baabe3b7-db11-4306-aad1-44313839af34.png">
+<img width="1209"  src="https://user-images.githubusercontent.com/27798171/229351698-baabe3b7-db11-4306-aad1-44313839af34.png">
 
 - binlog：是server层实现的二进制日志。会追加记录curd操作，记录格式分为statement-记录执行的sql、row-记录操作后的行数据（推荐）、mixed混合模式
 ```
@@ -240,7 +237,6 @@ select * from information_schema.optimizer_trace
 - select * from 表 order by a 【ysql索引内部优化：大概率不走索引，因为涉及到回表查询别的列表。】
 - select a, b, c from 表 where a > 3 order by a 【mysql索引内部优化：覆盖索引，肯定走a，b，c索引 ，不需要回表】
 
-
 总结
 - MysQL支持两种方式的排序ilesor和index， Using index是指MysQL扫描索引本身完成排序。index效率高，filesor效率低。
 - order by满足两种情況会使用Using index。
@@ -351,7 +347,7 @@ unlock tables;
 
 ```
 ### 行锁分析
-- 分析系统上的行锁的争夺情况: show status 1ike "innodb_row_1ock%":
+- 分析系统上的行锁的争夺情况: show status like "innodb_row_lock%":
 - 对各个状态量的说明如下：
   - Innodb_row_lock_current_waits: 当前正在等待锁定的数量
   - Innodb_row_lock_time：从系统启动到现在锁定总时间长度（等待总时长）
@@ -362,11 +358,11 @@ unlock tables;
 ### 查看INFORMATION_ SCHEMA系统库锁相关数据表
 ```sql
 -- 查看事务
-select * from INFORMATION SCHEMA.INNODB_TRX:
+select * from INFORMATION_SCHEMA.INNODB_TRX:
 -- 查看锁
-select * from INFORMATION_ SCHEMA.INNODB_ LOCKS；
+select * from INFORMATION_SCHEMA.INNODB_LOCKS；
 -- 查看锁等待
-select * from INFORMATION SCHEMA.INNODB_LOCK_WAITS;
+select * from INFORMATION_SCHEMA.INNODB_LOCK_WAITS;
 -- 释放锁,trx_mysql_thread_id可以从INNODB_TRX中找到
 kill trx_mysql_thread_id
 ```
@@ -377,4 +373,32 @@ kill trx_mysql_thread_id
 - 尽可能减少检索条件范围，避免间隙锁
 - 尽量控制事务大小，减少锁定资源量和时间长度，涉及事务加锁的sql尽量放在事务最后执行
 - 尽可能低级别事务隔离
+# mvcc多版本并发控制机制
+- 在读已提交和可重复读环境隔离级别中，对一行数据的读和写两个操作默认是不会通过加锁来保证隔离性的，而是靠mvcc机制，避免了频繁加锁互斥。
+- MVCC机制的实现就是通过read-view机制与undo版本链比对机制，使得不同的事务会根据数据版本链对比规则读取同一条数据在版本链上的不同版本数据。
+### undo日志版本链
+一行数据被事务修改后，会保留修改前的数据的undo回滚日志，并且用两个隐藏字段trx_id事务id和roll_pointer回滚指针把这些undo日志串联起来形成一个历史记录版本链。
+<img width="721"  src="https://user-images.githubusercontent.com/27798171/235947010-90fdce4f-c7f8-4bac-a96e-6d1d4aa3ee2d.png">
+
+### read-view 一致性视图
+- 在可重复读隔离级别，当事务开启，执行任何查询sql时会生成当前事务的一致性视图read-view，该视图在事务结束之前都不会变化(如果是读已提交隔离级别在每次执行查询sql时都会重新生成）
+- 这个read-view视图由执行查询时所有未提交事务id数组（数组里最小的id为min_id)和包创建的最大事务id (max_id) 组成，事务里的任何sql查询结果需要从对应undo日志版本链里的最新数据开始逐条跟read-view做比对从而得到最终的快照结果。
+
+### 版本链比对规则
+- 如果row 的trx_id 落在(trx_id<min_id)，表示这个版本是已提交的事务生成的，这个数据是可见的；
+- 如果row 的trx_id 落在(trx_id>max_id )，表示这个版本是由将来启动的事务生成的，是肯定不可见的；
+- 如果row 的trx_id 落在(min_id <=trx_id<=max_id)，那就包括两种情况
+  - a.若row 的trx id 在视图数组中，表示这个版本是由还没提交的事务生成的，不可见，若row 的trx_id 就是当前自己的事务是可见的；
+  - b.若row 的trx id 不在视图数组中，表示这个版本是已经提交了的事务生成的，可见。
+- 对于删除的情况可以认为是update的特殊情况，会将版本链上最新的数据复制一份，然后将trx_id修改成删除操作的trx_id，同时在该条记录的头信息(record header)里的(deleted_fag）标记位写上true，来表示当前记录已经被删除，在查询时按照上面的规则查到对应的记录如果delete_flag标记位为true，意味着记录已被删除，则不返回数据。
+- 注意：begin/start transaction 命令并不是一个事务的起点，在执行到它们之后的第一个修改操作linnoDB表的语句，事务才真正启动，才会向mysal申请事务id，mysql内部是严格按照事务的启动顺序来分配事务id的。
+
+# innodb引擎bufferPool缓存机制详解
+![Mysql语句执行过程](https://user-images.githubusercontent.com/27798171/235950668-06d722b4-f2e3-4e0d-8480-3aeddec4e703.png)
+
+
+为什么Mysql不能直接更新磁盘上的数据而设置这么一套复杂的机制来执行SQL了？
+- 因为来一个请求就直接对磁盘文件进行随机读写，然后更新磁盘文件里的数据性能可能相当差。因为磁盘随机读写的性能是非常差的，所以直接更新磁盘文件是不能让数据库抗住很高并发的。
+- Mysql这套机制看起来复杂，但它可以保证每个更新请求都是更新内存BufferPool，然后顺序写日志文件，同时还能保证各种异常情况下的数据一致性。更新内存的速度很快，然后顺序写磁盘上的日志文件的速度也很快，远高于随机读写磁盘文件。
+
 
