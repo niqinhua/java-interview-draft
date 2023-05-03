@@ -297,9 +297,10 @@ count(*)≈count(1)>count(索引字段)>count(id)>count(无索引字段)
 - count(id)最终mysql如果有辅助索引，一定会优先走辅助索引，因为辅助索引比主键索引存储数据更少，检索性能更高
 - 如果表很大，不管用哪种count，性能都会差
 # mysql 数据类型选择分析
-![搜狗截图20230422143940](https://user-images.githubusercontent.com/27798171/233767423-89a22ab3-479d-4d0f-8b24-db793826e802.png)
 
-![搜狗截图20230422144630](https://user-images.githubusercontent.com/27798171/233767747-d8c61e44-03e1-4c91-8e2b-3d4e2c4a535d.png)
+<img  alt="11" src="https://user-images.githubusercontent.com/27798171/233767423-89a22ab3-479d-4d0f-8b24-db793826e802.png">
+<img  alt="22" src="https://user-images.githubusercontent.com/27798171/233767747-d8c61e44-03e1-4c91-8e2b-3d4e2c4a535d.png">
+
 # mysql事务
 为了解决多个事务并发问题，数据库设计了事务隔离机制、锁机制、mvcc多版本并发控制隔离机制。注意myIsame不支持事务、不支持行锁，innodb支持事务、行锁。
 ### 事务的ACID属性
@@ -311,23 +312,28 @@ count(*)≈count(1)>count(索引字段)>count(id)>count(无索引字段)
 - 脏写/更新丢失：两个事务都读到库存为10，一个事务扣减2改成8，一个事务扣减3改成7，导致最后的更新覆盖了其他事务做的更新。
 - 脏读：事务A读取了事务B已经修改但尚未提交的数据。
 - 不可重读（默认）：事务A在相同查询语句在不同时刻查出来的结果不一样（更新）或者少了（被删了）
-- 幻读：事务A在相同查询语句在不同时刻查出来的结果变多了（其他事务添加的）
-# mysql事务隔离级别
+- 幻读：事务A在相同查询语句在不同时刻查出来的结果多了别的事务插入的数据。（针对插入）。【可重复读环境隔离级别：对于事务A先查询了id>1的数据，事务b插入了id=2，事务A想插入id=2的时候，发现已经存在了，A还可以更新id=2的数据】
+### mysql事务隔离级别
 - 读未提交：会导致脏读、不可重读、幻读。
 - 读已提交：解决了脏读。
 - 可重复读：解决了脏读、不可重读。但是会导致幻读，比如
 - 可串行化：解决了脏读、不可重读、幻读。避免幻读的方法：(1)查询语句会对涉及的行加写锁。(2)如果执行的是一个范围查询，那么范围内的所有行和行记录所在的间隙区间范围都会被加锁。
-# mysql锁机制
+# mysql锁
+### mysql 锁类型
 - 性能上区分：乐观锁、悲观锁
 - 操作类型上区分：读锁、写锁（都属于悲观锁）。读锁也叫共享锁（S锁），针对同一份数据，支持多个读操作，不支持写操作。写锁也叫排他锁（X锁），针对同一份数据，不支持别人读或写操作。
   - myIsame在执行查询语句前，会自动给涉及的表加读锁，在执行update、delete、insert前，会自动给涉及的表加写锁。
   - innodb在执行查询语句前，因为有mvcc机制，不会加锁。在执行update、delete、insert前，会自动给涉及的行加锁。
 - 粒度上区分：表锁和行锁。表锁一般用于数据迁移。
-- 间隙锁：间隙锁是在可重读
+- 间隙锁：间隙锁是在可重复读隔离级别下才会生效，检索条件必须走索引，不然更新语句会导致表锁。行数加间隙锁就是临键锁
+<img width="892" alt="截屏2023-05-03 下午8 40 32" src="https://user-images.githubusercontent.com/27798171/235918758-18b65cd2-70b2-4efe-9cda-a535dbefaafa.png">
+
 
 ```sql
 
-============悲观锁===============
+============读锁===============
+select * from 表名 where id=100 lock in share mode
+============悲观锁、写锁===============
 # 查询数据的时候就上锁，不允许别人写或读操作
 select * from 表名 where id = 1 for update
 ============乐观锁===============
@@ -344,6 +350,31 @@ show open tables;
 unlock tables;
 
 ```
-# mysql锁优化建议
+### 行锁分析
+- 分析系统上的行锁的争夺情况: show status 1ike "innodb_row_1ock%":
+- 对各个状态量的说明如下：
+  - Innodb_row_lock_current_waits: 当前正在等待锁定的数量
+  - Innodb_row_lock_time：从系统启动到现在锁定总时间长度（等待总时长）
+  - Innodb_row_lock_time_avg: 每次等待所花平均时间（等待平均时长）
+  - Innodb_row_lock_time_max：从系统启动到现在等待最长的一次所花时间
+  - Innodb_row_lock_waits:系统启动后到现在总共等待的次数（等待总次数）
 
+### 查看INFORMATION_ SCHEMA系统库锁相关数据表
+```sql
+-- 查看事务
+select * from INFORMATION SCHEMA.INNODB_TRX:
+-- 查看锁
+select * from INFORMATION_ SCHEMA.INNODB_ LOCKS；
+-- 查看锁等待
+select * from INFORMATION SCHEMA.INNODB_LOCK_WAITS;
+-- 释放锁,trx_mysql_thread_id可以从INNODB_TRX中找到
+kill trx_mysql_thread_id
+```
+
+### mysql锁优化建议
+- 尽可能让所有数据检索都通过索引来完成，避免无索引行锁升级为表锁
+- 合理设计索引，尽量缩小锁的范围
+- 尽可能减少检索条件范围，避免间隙锁
+- 尽量控制事务大小，减少锁定资源量和时间长度，涉及事务加锁的sql尽量放在事务最后执行
+- 尽可能低级别事务隔离
 
