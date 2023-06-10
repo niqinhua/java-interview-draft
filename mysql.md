@@ -394,8 +394,7 @@ kill trx_mysql_thread_id
 - 注意：begin/start transaction 命令并不是一个事务的起点，在执行到它们之后的第一个修改操作linnoDB表的语句，事务才真正启动，才会向mysal申请事务id，mysql内部是严格按照事务的启动顺序来分配事务id的。
 
 # innodb引擎bufferPool缓存机制详解
-![Mysql语句执行过程](https://user-images.githubusercontent.com/27798171/235950668-06d722b4-f2e3-4e0d-8480-3aeddec4e703.png)
-
+<img  src="https://user-images.githubusercontent.com/27798171/235950668-06d722b4-f2e3-4e0d-8480-3aeddec4e703.png">
 
 为什么Mysql不能直接更新磁盘上的数据而设置这么一套复杂的机制来执行SQL了？
 - 因为来一个请求就直接对磁盘文件进行随机读写，然后更新磁盘文件里的数据性能可能相当差。因为磁盘随机读写的性能是非常差的，所以直接更新磁盘文件是不能让数据库抗住很高并发的。
