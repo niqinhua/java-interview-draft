@@ -31,6 +31,7 @@
 - filtered：rows*filtered/100估算出将要和explain中前一个表进行连接的行数（前一个表指id值比当前表id值小的表）
 - id：有几个select就有几个id，id越大执行优先级越高，id相同则从上往下执行，id为null则最后执行
 - select type：表示对应行是简单还是复杂的查询。
+  - simple：简单查询，不包含子查询和union
   - primary：最外层的select；
   - subquery：select中的子查询；
   - derived：from中的子查询；mysql会把结果放在一个临时表中，也叫派生表
