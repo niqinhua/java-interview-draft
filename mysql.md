@@ -420,12 +420,17 @@ kill trx_mysql_thread_id
 <img  src="https://github.com/niqinhua/java-interview-draft/assets/27798171/1859ecd3-5500-4226-a040-a7cf49ed5042">
 - SQL语句经过分析器分析之后，会生成一个这样的语法树
 <img  src="https://github.com/niqinhua/java-interview-draft/assets/27798171/65441955-fe93-4cce-a66d-304dff9d0ba3">
+
 ### 优化器
 - 优化器是在表里面有多个索引的时候，决定使用哪个索引；或者在一个语句有多表关联（join）的时候，决定各个表的连接顺序；以及一些mysql自己内部的优化机制
+
 ### 执行器
 开始执行的时候，要先判断一下你对这个表 T 有没有执行查询的权限，如果没有，就会返回没有权限的错误，如下所示 (在工程实现上，如果命中查询缓存，会在查询缓存返回结果的时候，做权限验证)。如果有权限，就打开表继续执行。打开表的时候，执行器就会根据表的引擎定义，去使用这个引擎提供的接口。
+
 #### innodb引擎bufferPool缓存机制详解
+
 <img  src="https://user-images.githubusercontent.com/27798171/235950668-06d722b4-f2e3-4e0d-8480-3aeddec4e703.png">
+
 更新一个sql语句的流程
 - 1.从idb磁盘文件加载id为1的记录的整页数据到buffer pool缓存池
 - 2.写入更新数据的旧值undo日志方便回滚 
@@ -439,16 +444,18 @@ kill trx_mysql_thread_id
 为什么Mysql不能直接更新磁盘上的数据而设置这么一套复杂的机制来执行SQL了？
 - 因为来一个请求就直接对磁盘文件进行随机读写，然后更新磁盘文件里的数据性能可能相当差。因为磁盘随机读写的性能是非常差的，所以直接更新磁盘文件是不能让数据库抗住很高并发的。
 - Mysql这套机制看起来复杂，但它可以保证每个更新请求都是更新内存BufferPool，然后顺序写日志文件，同时还能保证各种异常情况下的数据一致性。更新内存的速度很快，然后顺序写磁盘上的日志文件的速度也很快，远高于随机读写磁盘文件。
-### redo log重做日志
+
+#### redo log重做日志
 - redo log 从头开始写，写完一个文件继续写另一个文件，写到最后一个文件末尾就又回到第一个文件开头循环写
 - redo log 的写入策略：innodb_flush_log_at_trx_commit=1
   - 设置为0：表示每次事务提交时都只是把 redo log 留在 redo log buffer 中，数据库宕机可能会丢失数据
   - 设置为1(默认值)：表示每次事务提交时都将 redo log 直接持久化到磁盘，数据最安全，不会因为数据库宕机丢失数据，但是效率稍微差一点，线上系统推荐这个设置。
   - 设置为2：表示每次事务提交时都只是把 redo log 写到操作系统的缓存page cache里，这种情况如果数据库宕机是不会丢失数据的，但是操作系统如果宕机了，page cache里的数据还没来得及写入磁盘文件的话就会丢失数据。
   - InnoDB 有一个后台线程，每隔 1 秒，就会把 redo log buffer 中的日志，调用 操作系统函数 write 写到文件系统的 page cache，然后调用操作系统函数 fsync 持久化到磁盘文件。
- <img  src="https://github.com/niqinhua/java-interview-draft/assets/27798171/58dc2468-2ccf-412d-861e-d02a0ad07936">
 
-### binlog二进制归档日志
+<img  src="https://github.com/niqinhua/java-interview-draft/assets/27798171/58dc2468-2ccf-412d-861e-d02a0ad07936">
+
+#### binlog二进制归档日志
 - binlog二进制日志记录保存了所有执行过的修改操作语句，不保存查询操作。如果 MySQL 服务意外停止，可通过二进制日志文件排查，用户操作或表结构操作，从而来恢复数据库数据。
 启动binlog记录功能，会影响服务器性能，但如果需要恢复数据或主从复制功能，则好处则大于对服务器的影响。
 - MySQL5.7 版本中，binlog默认是关闭的，8.0版本默认是打开的。
@@ -461,7 +468,7 @@ kill trx_mysql_thread_id
   -  也可以设置为1，表示每次提交事务都会执行 fsync 写入磁盘，这种方式最安全。
   -  还有一种折中方式，可以设置为N(N>1)，表示每次提交事务都write 到page cache，但累积N个事务后才 fsync 写入磁盘，这种如果机器宕机会丢失N个事务的binlog。
 - 发生以下任何事件时, binlog日志文件会重新生成：（1）服务器启动或重新启动（2）服务器刷新日志，执行命令flush logs（3）日志文件大小达到 max_binlog_size 值，默认值为 1GB
-### undo log回滚日志
-### 错误日志
+#### undo log回滚日志
+#### 错误日志
 ### 通用查询日志
 
