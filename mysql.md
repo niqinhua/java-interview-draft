@@ -501,12 +501,12 @@ max_binlog_size = 200M # 单个binlog日志文件的大小限制，默认为 1GB
 - general_log：是否开启日志参数，默认为OFF，处于关闭状态，因为开启会消耗系统资源并且占用磁盘空间。一般不建议开启，只在需要调试查询问题时开启。
 
 # mysql8.0新特性
-### 支持索引一个字段升序，一个字段降序
+### 支持索引一个字段升序，一个字段降序!
 create table t1(c1 int,c2 int,index idx_c1_c2(c1,c2 desc));
-### group by 不再隐式排序
+### group by 不再隐式排序!
  - mysql 5.7 使用groud by的时候会对group by的字段进行正序排序；
  - mysql 8.0 对于group by 字段不再隐式排序，如需要排序，必须显式加上order by 子句。
-### 增加隐藏索引
+### 增加隐藏索引!
 - 使用 invisible 关键字在创建表或者进行表变更中设置索引为隐藏索引。索引隐藏只是不可见，但是数据库后台还是会维护隐藏索引的，在查询时优化器不使用该索引，即使用force index，优化器也不会使用该索引，同时优化器也不会报索引不存在的错误，因为索引仍然真实存在，必要时，也可以把隐藏索引快速恢复成可见。注意，主键不能设置为 invisible。
 - 软删除就可以使用隐藏索引，比如我们觉得某个索引没用了，删除后发现这个索引在某些时候还是有用的，于是又得把这个索引加回来，如果表数据量很大的话，这种操作耗费时间是很多的，成本很高，这时，我们可以将索引先设置为隐藏索引，等到真的确认索引没用了再删除。
 ```sql
@@ -529,7 +529,7 @@ alter table t2 alter index idx_c2 visible;
 -- 把可见索引改为隐藏索引
 alter table t2 alter index idx_c2 invisible;
 ```
-### 函数索引
+### 函数索引!
 - 之前我们知道，如果在查询中加入了函数，索引不生效，所以MySQL 8引入了函数索引，MySQL 8.0.13开始支持在索引中使用函数(表达式)的值。
 - 函数索引基于虚拟列功能实现，在MySQL中相当于新增了一个列，这个列会根据你的函数来进行计算结果，然后使用函数索引的时候就会用这个计算后的列作为索引。
 
@@ -541,7 +541,7 @@ create index func_idx on t3((UPPER(c2))); ‐‐创建一个大写的函数索�
 explain select * from t3 where upper(c2)='ZHUGE'; ‐‐使用了函数索引 func_idx
 ```
 
-### innodb存储引擎select for update跳过锁等待
+### innodb存储引擎select for update跳过锁等待!
 - 在5.7及之前的版本，select...for update，如果获取不到锁，会一直等待，直到innodb_lock_wait_timeout（行锁锁定时间默认50秒）超时。
 - 在8.0版本，通过添加nowait，skip locked语法，能够立即返回。如果查询的行已经加锁，那么nowait会立即报错返回，而skip locked也会立即返回，只是返回的结果中不包含被锁定的行。
 - 应用场景比如查询余票记录，如果某些记录已经被锁定，用skip locked可以跳过被锁定的记录，只返回没有锁定的记录，提高系统性能。
@@ -565,7 +565,7 @@ MySQL 8.0 （MySQL 5.7.15）增加了一个新的动态变量 innodb_deadlock_de
 之前是天，并且参数名称发生变化. 在8.0版本之前，binlog日志过期时间设置都是设置expire_logs_days参数，而在8.0版本中，
 MySQL默认使用binlog_expire_logs_seconds参数。
 
-### 窗口函数(Window Functions)：也称分析函数
+### 窗口函数(Window Functions)：也称分析函数！
 - 窗口函数与 SUM()、COUNT() 这种分组聚合函数类似，在聚合函数后面加上over()就变成窗口函数了，在括号里可以加上partition by等分组关键字指定如何分组，窗口函数即便分组也不会将多行查询结果合并为一行，而是将结果放回多行当中，即窗口函数不需要再使用 GROUP BY。
 - 专用窗口函数
   - 序号函数：ROW_NUMBER()、RANK()、DENSE_RANK()
@@ -945,7 +945,7 @@ MySQL 8.0删除了之前版本的元数据文件，例如表结构.frm等文件�
  10 rows in set (0.00 sec)
 ```
 
-### 参数修改持久化
+### 参数修改持久化！
 MySQL 8.0版本支持在线修改全局参数并持久化，通过加上PERSIST关键字，可以将修改的参数持久化到新的配置文件（mysqld-auto.cnf）中，重启MySQL时，可以从该配置文件获取到最新的配置参数。set global 设置的变量参数在mysql重启后会失效。
 ```sql
  set persist innodb_lock_wait_timeout=25;
