@@ -16,7 +16,7 @@
 ```
 ### 聚簇索引、稀疏索引是什么
 - myisam的索引结构：表的底层存储是frm（表结构信息）、myd（data）、myi（index）三个文件，myd存的是数据，myi存的是索引的B+树。索引和数据是分开存储，这种叫非聚簇索引。索引的B+树的叶子节点的data存的是数据的某一个行的地址。
-- innodb的索引结构：表的底层存储是frm（表结构信息）、ibd（data+index）三个文件。ibd只会有一个聚簇索引，就是数据和索引在一起的B+树，数据存在B+树的叶子节点。但是普通索引其实还是非聚簇索引，叶子节点的data存的是主键值，存主键的好处是保证数据一致性和节省存储空间。
+- innodb的索引结构：表的底层存储是frm（表结构信息）、ibd（data+index）两个文件。ibd只会有一个聚簇索引，就是数据和索引在一起的B+树，数据存在B+树的叶子节点。但是普通索引其实还是非聚簇索引，叶子节点的data存的是主键值，存主键的好处是保证数据一致性和节省存储空间。
 
 ### 为什么推荐使用整型自增索引做主键
 - 因为如果是字符串，索引查找的就得对字符串索引的每个字符一一比较，非常耗时。
@@ -455,6 +455,11 @@ kill trx_mysql_thread_id
 
 <img  src="https://github.com/niqinhua/java-interview-draft/assets/27798171/58dc2468-2ccf-412d-861e-d02a0ad07936">
 
+- 相关redo log文件的配置
+  - innodb_log_buffer_size：设置redo log buffer大小参数，默认16M ，最大值是4096M，最小值为1M。
+  - innodb_log_file_size：设置单个redo log文件大小，默认值为48M。最大值为512G，注意最大值指的是整个 redo log系列文件之和，即(innodb_log_files_in_group * innodb_log_file_size)不能大于最大值512G。
+  - innodb_log_files_in_group：设置redo log文件的个数，命名方式如: ib_logfile0, iblogfile1... iblogfileN。默认2个，最大100个
+
 #### binlog二进制归档日志
 - binlog二进制日志记录保存了所有执行过的修改操作语句，不保存查询操作。如果 MySQL 服务意外停止，可通过二进制日志文件排查，用户操作或表结构操作，从而来恢复数据库数据。
 启动binlog记录功能，会影响服务器性能，但如果需要恢复数据或主从复制功能，则好处则大于对服务器的影响。
@@ -468,6 +473,19 @@ kill trx_mysql_thread_id
   -  也可以设置为1，表示每次提交事务都会执行 fsync 写入磁盘，这种方式最安全。
   -  还有一种折中方式，可以设置为N(N>1)，表示每次提交事务都write 到page cache，但累积N个事务后才 fsync 写入磁盘，这种如果机器宕机会丢失N个事务的binlog。
 - 发生以下任何事件时, binlog日志文件会重新生成：（1）服务器启动或重新启动（2）服务器刷新日志，执行命令flush logs（3）日志文件大小达到 max_binlog_size 值，默认值为 1GB
+- binlog 相关配置my.cnf
+```
+# log‐bin设置binlog的存放位置，可以是绝对路径，也可以是相对路径，这里写的相对路径，则binlog文件默认会放在data数据目录下
+log‐bin=mysql‐binlog
+
+# Server Id是数据库服务器id，随便写一个数都可以，这个id用来在mysql集群环境中标记唯一mysql服务器，集群环境中每台mysql服务器的id不能一样，不加启动会报错
+server‐id=1
+
+# 其他配置
+binlog_format = row # 日志文件格式
+expire_logs_days = 15 # 执行自动删除binlog日志文件的天数， 默认为0， 表示不自动删除
+max_binlog_size = 200M # 单个binlog日志文件的大小限制，默认为 1GB
+```
 #### undo log回滚日志
 - InnoDB对undo log文件的管理采用段的方式，也就是回滚段（rollback segment） 。每个回滚段记录了 1024 个 undo log segment ，每个事务只会使用一个undo log segment。在MySQL5.5的时候，只有一个回滚段，那么最大同时支持的事务数量为1024个。在MySQL 5.6开始，InnoDB支持最大 128个回滚段，故其支持同时在线的事务限制提高到了 128*1024 。
 
@@ -481,3 +499,455 @@ kill trx_mysql_thread_id
 ### 通用查询日志
 - 通用查询日志记录用户的所有操作，包括启动和关闭MySQL服务、所有用户的连接开始时间和截止时间、发给 MySQL 数据库服务器的所有 SQL 指令等，如select、show等，无论SQL的语法正确还是错误、也无论SQL执行成功还是失败，MySQL都会将其记录下来。通用查询日志用来还原操作时的具体场景，可以帮助我们准确定位一些疑难问题，比如重复支付等问题。
 - general_log：是否开启日志参数，默认为OFF，处于关闭状态，因为开启会消耗系统资源并且占用磁盘空间。一般不建议开启，只在需要调试查询问题时开启。
+
+# mysql8.0新特性
+### 支持索引一个字段升序，一个字段降序
+create table t1(c1 int,c2 int,index idx_c1_c2(c1,c2 desc));
+### group by 不再隐式排序
+ - mysql 5.7 使用groud by的时候会对group by的字段进行正序排序；
+ - mysql 8.0 对于group by 字段不再隐式排序，如需要排序，必须显式加上order by 子句。
+### 增加隐藏索引
+- 使用 invisible 关键字在创建表或者进行表变更中设置索引为隐藏索引。索引隐藏只是不可见，但是数据库后台还是会维护隐藏索引的，在查询时优化器不使用该索引，即使用force index，优化器也不会使用该索引，同时优化器也不会报索引不存在的错误，因为索引仍然真实存在，必要时，也可以把隐藏索引快速恢复成可见。注意，主键不能设置为 invisible。
+- 软删除就可以使用隐藏索引，比如我们觉得某个索引没用了，删除后发现这个索引在某些时候还是有用的，于是又得把这个索引加回来，如果表数据量很大的话，这种操作耗费时间是很多的，成本很高，这时，我们可以将索引先设置为隐藏索引，等到真的确认索引没用了再删除。
+```sql
+-- 创建隐藏索引
+ create table t2(c1 int, c2 int, index idx_c1(c1), index idx_c2(c2) invisible);
+
+-- 在查询时优化器不使用该索引，即使用force index，优化器也不会使用该索引
+ explain select * from t2 where c2=1; ‐‐隐藏索引c2不会被使用,key=NULL
+
+-- 查询表的所有索引（包括隐藏索引）
+ show index from t2
+
+-- 在回话级别看到隐藏索引并使用隐藏索引
+set session optimizer_switch="use_invisible_indexes=on"
+explain select * from t2 where c2=1; ‐‐隐藏索引c2会被使用
+
+-- 把隐藏索引改为可见
+alter table t2 alter index idx_c2 visible;
+
+-- 把可见索引改为隐藏索引
+alter table t2 alter index idx_c2 invisible;
+```
+### 函数索引
+- 之前我们知道，如果在查询中加入了函数，索引不生效，所以MySQL 8引入了函数索引，MySQL 8.0.13开始支持在索引中使用函数(表达式)的值。
+- 函数索引基于虚拟列功能实现，在MySQL中相当于新增了一个列，这个列会根据你的函数来进行计算结果，然后使用函数索引的时候就会用这个计算后的列作为索引。
+
+```sql
+create table t3(c1 varchar(10),c2 varchar(10));
+create index idx_c1 on t3(c1); ‐‐创建普通索引
+-- 使用函数索引举例
+create index func_idx on t3((UPPER(c2))); ‐‐创建一个大写的函数索引
+explain select * from t3 where upper(c2)='ZHUGE'; ‐‐使用了函数索引 func_idx
+```
+
+### innodb存储引擎select for update跳过锁等待
+- 在5.7及之前的版本，select...for update，如果获取不到锁，会一直等待，直到innodb_lock_wait_timeout（行锁锁定时间默认50秒）超时。
+- 在8.0版本，通过添加nowait，skip locked语法，能够立即返回。如果查询的行已经加锁，那么nowait会立即报错返回，而skip locked也会立即返回，只是返回的结果中不包含被锁定的行。
+- 应用场景比如查询余票记录，如果某些记录已经被锁定，用skip locked可以跳过被锁定的记录，只返回没有锁定的记录，提高系统性能。
+
+### 新增innodb_dedicated_server自适应参数
+- 能够让InnoDB根据服务器上检测到的内存大小自动配置innodb_buffer_pool_size(buffer pool缓存大小，一般为物理内存的60%-70%。)，innodb_log_file_size（单个redo log文件大小，默认值为48M）等参数，会尽可能多的占用系统可占用资源提升性能。解决非专业人员安装数据库后默认初始化数据库参数默认值偏低的问题，前提是服务器是专用来给MySQL数据库的，如果还有其他软件或者资源或者多实例MySQL使用，不建议开启该参数，不然会影响其它程序。
+```sql
+show variables like '%innodb_dedicated_server%'; ‐‐默认是OFF关闭，修改为ON打开
+```
+### 死锁检查控制
+MySQL 8.0 （MySQL 5.7.15）增加了一个新的动态变量 innodb_deadlock_detect，用于控制系统是否执行 InnoDB 死锁检查，默认是打开的。死锁检测会耗费数据库性能的，对于高并发的系统，我们可以关闭死锁检测功能，提高系统性能。但是我们要确保系统极少情况会发生死锁，同时要将锁等待超时参数调小一点，以防出现死锁等待过久的情况。
+```sql
+ show variables like '%innodb_deadlock_detect%'; ‐‐默认是打开的
+```
+### undo文件不再使用系统表空间
+默认创建2个UNDO表空间，不再使用系统表空间。
+
+<img  src="https://github.com/niqinhua/java-interview-draft/assets/27798171/da0f8120-725d-4f5c-a760-887d764d2377">
+
+### binlog日志过期时间精确到秒
+之前是天，并且参数名称发生变化. 在8.0版本之前，binlog日志过期时间设置都是设置expire_logs_days参数，而在8.0版本中，
+MySQL默认使用binlog_expire_logs_seconds参数。
+
+### 窗口函数(Window Functions)：也称分析函数
+- 窗口函数与 SUM()、COUNT() 这种分组聚合函数类似，在聚合函数后面加上over()就变成窗口函数了，在括号里可以加上partition by等分组关键字指定如何分组，窗口函数即便分组也不会将多行查询结果合并为一行，而是将结果放回多行当中，即窗口函数不需要再使用 GROUP BY。
+- 专用窗口函数
+  - 序号函数：ROW_NUMBER()、RANK()、DENSE_RANK()
+  - 分布函数：PERCENT_RANK()、CUME_DIST()
+  - 前后函数：LAG()、LEAD()
+  - 头尾函数：FIRST_VALUE()、LAST_VALUE()
+  - 其它函数：NTH_VALUE()、NTILE()
+
+```sql
+ # 创建一张账户余额表
+ CREATE TABLE `account_channel` (
+ `id` int NOT NULL AUTO_INCREMENT,
+ `name` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci DEFAULT NULL COMMENT '姓名',
+ `channel` varchar(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci DEFAULT NULL COMMENT '账户渠道',
+ `balance` int DEFAULT NULL COMMENT '余额',
+ PRIMARY KEY (`id`)
+ ) ENGINE=InnoDB
+
+ # 插入一些示例数据
+ INSERT INTO `test`.`account_channel` (`id`, `name`, `channel`, `balance`) VALUES ('1', 'zhuge', 'wx','100');
+ INSERT INTO `test`.`account_channel` (`id`, `name`, `channel`, `balance`) VALUES ('2', 'zhuge', 'alipay','200');
+ INSERT INTO `test`.`account_channel` (`id`, `name`, `channel`, `balance`) VALUES ('3', 'zhuge', 'yinhang','300');
+ INSERT INTO `test`.`account_channel` (`id`, `name`, `channel`, `balance`) VALUES ('4', 'lilei', 'wx','200');
+ INSERT INTO `test`.`account_channel` (`id`, `name`, `channel`, `balance`) VALUES ('5', 'lilei', 'alipay','100');
+ INSERT INTO `test`.`account_channel` (`id`, `name`, `channel`, `balance`) VALUES ('6', 'hanmeimei', 'wx','500');
+
+ mysql> select * from account_channel;
+ +‐‐‐‐+‐‐‐‐‐‐‐‐‐‐‐+‐‐‐‐‐‐‐‐‐+‐‐‐‐‐‐‐‐‐+
+ | id | name | channel | balance |
+ +‐‐‐‐+‐‐‐‐‐‐‐‐‐‐‐+‐‐‐‐‐‐‐‐‐+‐‐‐‐‐‐‐‐‐+
+ | 1 | zhuge | wx | 100 |
+ | 2 | zhuge | alipay | 200 |
+ | 3 | zhuge | yinhang | 300 |
+ | 4 | lilei | wx | 200 |
+ | 5 | lilei | alipay | 100 |
+ | 6 | hanmeimei | wx | 500 |
+ +‐‐‐‐+‐‐‐‐‐‐‐‐‐‐‐+‐‐‐‐‐‐‐‐‐+‐‐‐‐‐‐‐‐‐+
+ 6 rows in set (0.00 sec)
+
+ mysql> select name,sum(balance) from account_channel group by name;
+ +‐‐‐‐‐‐‐‐‐‐‐+‐‐‐‐‐‐‐‐‐‐‐‐‐‐+
+ | name | sum(balance) |
+ +‐‐‐‐‐‐‐‐‐‐‐+‐‐‐‐‐‐‐‐‐‐‐‐‐‐+
+ | zhuge | 600 |
+ | lilei | 300 |
+ | hanmeimei | 500 |
+ +‐‐‐‐‐‐‐‐‐‐‐+‐‐‐‐‐‐‐‐‐‐‐‐‐‐+
+ 3 rows in set (0.00 sec)
+
+ # 在聚合函数后面加上over()就变成分析函数了，后面可以不用再加group by制定分组，因为在over里已经用partition关键字指明了如何分组计算，这种可以保留原有表数据的结构，不会像分组聚合函数那样每组只返回一条数据
+ mysql> select name,channel,balance,sum(balance) over(partition by name) as sum_balance from account_channel;
+ +‐‐‐‐‐‐‐‐‐‐‐+‐‐‐‐‐‐‐‐‐+‐‐‐‐‐‐‐‐‐+‐‐‐‐‐‐‐‐‐‐‐‐‐+
+ | name | channel | balance | sum_balance |
+ +‐‐‐‐‐‐‐‐‐‐‐+‐‐‐‐‐‐‐‐‐+‐‐‐‐‐‐‐‐‐+‐‐‐‐‐‐‐‐‐‐‐‐‐+
+ | hanmeimei | wx | 500 | 500 |
+ | lilei | wx | 200 | 300 |
+ | lilei | alipay | 100 | 300 |
+ | zhuge | wx | 100 | 600 |
+ | zhuge | alipay | 200 | 600 |
+ | zhuge | yinhang | 300 | 600 |
+ +‐‐‐‐‐‐‐‐‐‐‐+‐‐‐‐‐‐‐‐‐+‐‐‐‐‐‐‐‐‐+‐‐‐‐‐‐‐‐‐‐‐‐‐+
+ 6 rows in set (0.00 sec)
+
+# 每个分组的sum_balance为前面行和当前行的累加
+ mysql> select name,channel,balance,sum(balance) over(partition by name order by balance) as sum_balance from account_channel;
+ +‐‐‐‐‐‐‐‐‐‐‐+‐‐‐‐‐‐‐‐‐+‐‐‐‐‐‐‐‐‐+‐‐‐‐‐‐‐‐‐‐‐‐‐+
+ | name | channel | balance | sum_balance |
+ +‐‐‐‐‐‐‐‐‐‐‐+‐‐‐‐‐‐‐‐‐+‐‐‐‐‐‐‐‐‐+‐‐‐‐‐‐‐‐‐‐‐‐‐+
+ | hanmeimei | wx | 500 | 500 |
+ | lilei | alipay | 100 | 100 |
+ | lilei | wx | 200 | 300 |
+ | zhuge | wx | 100 | 100 |
+ | zhuge | alipay | 200 | 300 |
+ | zhuge | yinhang | 300 | 600 |
+ +‐‐‐‐‐‐‐‐‐‐‐+‐‐‐‐‐‐‐‐‐+‐‐‐‐‐‐‐‐‐+‐‐‐‐‐‐‐‐‐‐‐‐‐+
+ 6 rows in set (0.00 sec)
+
+
+ # over()里如果不加条件，则默认使用整个表的数据做运算
+ mysql> select name,channel,balance,sum(balance) over() as sum_balance from account_channel;
+ +‐‐‐‐‐‐‐‐‐‐‐+‐‐‐‐‐‐‐‐‐+‐‐‐‐‐‐‐‐‐+‐‐‐‐‐‐‐‐‐‐‐‐‐+
+ | name | channel | balance | sum_balance |
+ +‐‐‐‐‐‐‐‐‐‐‐+‐‐‐‐‐‐‐‐‐+‐‐‐‐‐‐‐‐‐+‐‐‐‐‐‐‐‐‐‐‐‐‐+
+ | zhuge | wx | 100 | 1400 |
+ | zhuge | alipay | 200 | 1400 |
+ | zhuge | yinhang | 300 | 1400 |
+ | lilei | wx | 200 | 1400 |
+ | lilei | alipay | 100 | 1400 |
+ | hanmeimei | wx | 500 | 1400 |
+ +‐‐‐‐‐‐‐‐‐‐‐+‐‐‐‐‐‐‐‐‐+‐‐‐‐‐‐‐‐‐+‐‐‐‐‐‐‐‐‐‐‐‐‐+
+ 6 rows in set (0.00 sec)
+
+### 按照balance字段排序，展示序号
+ mysql> select name,channel,balance,row_number() over(order by balance) as row_number1 from account_channel;
+ +‐‐‐‐‐‐‐‐‐‐‐+‐‐‐‐‐‐‐‐‐+‐‐‐‐‐‐‐‐‐+‐‐‐‐‐‐‐‐‐‐‐‐‐+
+ | name | channel | balance | row_number1 |
+ +‐‐‐‐‐‐‐‐‐‐‐+‐‐‐‐‐‐‐‐‐+‐‐‐‐‐‐‐‐‐+‐‐‐‐‐‐‐‐‐‐‐‐‐+
+ | zhuge | wx | 100 | 1 |
+ | lilei | alipay | 100 | 2 |
+ | zhuge | alipay | 200 | 3 |
+ | lilei | wx | 200 | 4 |
+| zhuge | yinhang | 300 | 5 |
+| hanmeimei | wx | 500 | 6 |
++‐‐‐‐‐‐‐‐‐‐‐+‐‐‐‐‐‐‐‐‐+‐‐‐‐‐‐‐‐‐+‐‐‐‐‐‐‐‐‐‐‐‐‐+
+6 rows in set (0.00 sec)
+
+# 按照balance字段排序，first_value()选出排第一的余额
+mysql> select name,channel,balance,first_value(balance) over(order by balance) as first1 from account_chann
+
++‐‐‐‐‐‐‐‐‐‐‐+‐‐‐‐‐‐‐‐‐+‐‐‐‐‐‐‐‐‐+‐‐‐‐‐‐‐‐+
+| name | channel | balance | first1 |
++‐‐‐‐‐‐‐‐‐‐‐+‐‐‐‐‐‐‐‐‐+‐‐‐‐‐‐‐‐‐+‐‐‐‐‐‐‐‐+
+| zhuge | wx | 100 | 100 |
+| lilei | alipay | 100 | 100 |
+| zhuge | alipay | 200 | 100 |
+| lilei | wx | 200 | 100 |
+| zhuge | yinhang | 300 | 100 |
+| hanmeimei | wx | 500 | 100 |
++‐‐‐‐‐‐‐‐‐‐‐+‐‐‐‐‐‐‐‐‐+‐‐‐‐‐‐‐‐‐+‐‐‐‐‐‐‐‐+
+6 rows in set (0.01 sec)
+```
+### 默认字符集由latin1变为utf8mb4
+在8.0版本之前，默认字符集为latin1，utf8指向的是utf8mb3，8.0版本默认字符集为utf8mb4，utf8默认指向的也是utf8mb4。\
+
+### MyISAM系统表全部换成InnoDB表
+将系统表(mysql)和数据字典表全部改为InnoDB存储引擎，默认的MySQL实例将不包含MyISAM表，除非手动创建MyISAM表。
+
+### 元数据存储变动
+MySQL 8.0删除了之前版本的元数据文件，例如表结构.frm等文件，全部集中放入mysql.ibd文件里。
+
+<img  src="https://github.com/niqinhua/java-interview-draft/assets/27798171/070fbf49-0108-438f-9284-3e128c0b9afa">
+
+### 自增变量持久化
+在8.0之前的版本，自增主键AUTO_INCREMENT的值如果大于max(primary key)+1，在MySQL重启后，会重置AUTO_INCREMENT=max(primary key)+1，这种现象在某些情况下会导致业务主键冲突或者其他难以发现的问题。自增主键重启重置的问题很早就被发现(https://bugs.mysql.com/bug.php?id=199)，一直到8.0才被解决，8.0版本将会对AUTO_INCREMENT值进行持久化，MySQL重启后，该值将不会改变。
+
+```sql
+ # ====MySQL 5.7演示====
+ mysql> create table t(id int auto_increment primary key,c1 varchar(20));
+ Query OK, 0 rows affected (0.03 sec)
+
+ mysql> insert into t(c1) values('zhuge1'),('zhuge2'),('zhuge3');
+ Query OK, 3 rows affected (0.00 sec)
+ Records: 3 Duplicates: 0 Warnings: 0
+
+ mysql> select * from t;
+ +‐‐‐‐+‐‐‐‐‐‐‐‐+
+ | id | c1 |
+ +‐‐‐‐+‐‐‐‐‐‐‐‐+
+ | 1 | zhuge1 |
+ | 2 | zhuge2 |
+ | 3 | zhuge3 |
+ +‐‐‐‐+‐‐‐‐‐‐‐‐+
+ 3 rows in set (0.00 sec)
+
+ mysql> delete from t where id = 3;
+ Query OK, 1 row affected (0.01 sec)
+
+ mysql> select * from t;
+ +‐‐‐‐+‐‐‐‐‐‐‐‐+
+ | id | c1 |
+ +‐‐‐‐+‐‐‐‐‐‐‐‐+
+ | 1 | zhuge1 |
+ | 2 | zhuge2 |
+ +‐‐‐‐+‐‐‐‐‐‐‐‐+
+ 2 rows in set (0.00 sec)
+
+ mysql> exit;
+ Bye
+
+ # 重启MySQL服务，并重新连接MySQL, 自增主键AUTO_INCREMENT=4的值如果大于max(primary key)+1，即2+1，在MySQL重启后，会重置AUTO_INCREMENT=max(primary key)+1，即2+1=3
+ mysql> insert into t(c1) values('zhuge4');
+ Query OK, 1 row affected (0.01 sec)
+
+ mysql> select * from t;
+ +‐‐‐‐+‐‐‐‐‐‐‐‐+
+ | id | c1 |
+ +‐‐‐‐+‐‐‐‐‐‐‐‐+
+ | 1 | zhuge1 |
+ | 2 | zhuge2 |
+ | 3 | zhuge4 |
+ +‐‐‐‐+‐‐‐‐‐‐‐‐+
+ 3 rows in set (0.00 sec)
+
+ mysql> update t set id = 5 where c1 = 'zhuge1';
+ Query OK, 1 row affected (0.01 sec)
+ Rows matched: 1 Changed: 1 Warnings: 0
+
+ mysql> select * from t;
+ +‐‐‐‐+‐‐‐‐‐‐‐‐+
+ | id | c1 |
+ +‐‐‐‐+‐‐‐‐‐‐‐‐+
+ | 2 | zhuge2 |
+ | 3 | zhuge4 |
+ | 5 | zhuge1 |
+ +‐‐‐‐+‐‐‐‐‐‐‐‐+
+ 3 rows in set (0.00 sec)
+
+ mysql> insert into t(c1) values('zhuge5');
+ Query OK, 1 row affected (0.01 sec)
+
+ mysql> select * from t;
+ +‐‐‐‐+‐‐‐‐‐‐‐‐+
+ | id | c1 |
+ +‐‐‐‐+‐‐‐‐‐‐‐‐+
+ | 2 | zhuge2 |
+ | 3 | zhuge4 |
+ | 4 | zhuge5 |
+ | 5 | zhuge1 |
+ +‐‐‐‐+‐‐‐‐‐‐‐‐+
+ 4 rows in set (0.00 sec)
+
+ mysql> insert into t(c1) values('zhuge6');
+ ERROR 1062 (23000): Duplicate entry '5' for key 'PRIMARY'
+
+
+
+ # ====MySQL 8.0演示====
+ mysql> create table t(id int auto_increment primary key,c1 varchar(20));
+ Query OK, 0 rows affected (0.02 sec)
+
+ mysql> insert into t(c1) values('zhuge1'),('zhuge2'),('zhuge3');
+ Query OK, 3 rows affected (0.00 sec)
+ Records: 3 Duplicates: 0 Warnings: 0
+
+ mysql> select * from t;
+ +‐‐‐‐+‐‐‐‐‐‐‐‐+
+ | id | c1 |
+ +‐‐‐‐+‐‐‐‐‐‐‐‐+
+ | 1 | zhuge1 |
+ | 2 | zhuge2 |
+ | 3 | zhuge3 |
+ +‐‐‐‐+‐‐‐‐‐‐‐‐+
+ 3 rows in set (0.00 sec)
+
+ mysql> delete from t where id = 3;
+ Query OK, 1 row affected (0.01 sec)
+
+ mysql> select * from t;
+ +‐‐‐‐+‐‐‐‐‐‐‐‐+
+ | id | c1 |
+ +‐‐‐‐+‐‐‐‐‐‐‐‐+
+ | 1 | zhuge1 |
+ | 2 | zhuge2 |
+ +‐‐‐‐+‐‐‐‐‐‐‐‐+
+ 2 rows in set (0.00 sec)
+
+ mysql> exit;
+ Bye
+ [root@localhost ~]# service mysqld restart
+ Shutting down MySQL.... SUCCESS!
+ Starting MySQL... SUCCESS!
+
+ # 重新连接MySQL
+ mysql> insert into t(c1) values('zhuge4');
+ Query OK, 1 row affected (0.00 sec)
+
+ mysql> select * from t; ‐‐生成的id为4，不是3
+ +‐‐‐‐+‐‐‐‐‐‐‐‐+
+ | id | c1 |
+ +‐‐‐‐+‐‐‐‐‐‐‐‐+
+ | 1 | zhuge1 |
+ | 2 | zhuge2 |
+ | 4 | zhuge4 |
+ +‐‐‐‐+‐‐‐‐‐‐‐‐+
+ 3 rows in set (0.00 sec)
+
+ mysql> update t set id = 5 where c1 = 'zhuge1';
+ Query OK, 1 row affected (0.01 sec)
+ Rows matched: 1 Changed: 1 Warnings: 0
+
+ mysql> select * from t;
+ +‐‐‐‐+‐‐‐‐‐‐‐‐+
+ | id | c1 |
+ +‐‐‐‐+‐‐‐‐‐‐‐‐+
+ | 2 | zhuge2 |
+ | 4 | zhuge4 |
+ | 5 | zhuge1 |
+ +‐‐‐‐+‐‐‐‐‐‐‐‐+
+ 3 rows in set (0.00 sec)
+
+ mysql> insert into t(c1) values('zhuge5');
+ Query OK, 1 row affected (0.00 sec)
+
+ mysql> select * from t;
+ +‐‐‐‐+‐‐‐‐‐‐‐‐+
+ | id | c1 |
+ +‐‐‐‐+‐‐‐‐‐‐‐‐+
+ | 2 | zhuge2 |
+ | 4 | zhuge4 |
+ | 5 | zhuge1 |
+ | 6 | zhuge5 |
+ +‐‐‐‐+‐‐‐‐‐‐‐‐+
+ 4 rows in set (0.00 sec)
+```
+
+### DDL原子化
+- InnoDB表的DDL支持事务完整性，要么成功要么回滚。
+- MySQL 8.0 开始支持原子 DDL 操作，其中与表相关的原子 DDL 只支持 InnoDB 存储引擎。
+- 一个原子 DDL 操作内容包括：更新数据字典，存储引擎层的操作，在 binlog 中记录 DDL 操作。
+- 支持与表相关的 DDL：数据库、表空间、表、索引的 CREATE、ALTER、DROP 以及 TRUNCATE TABLE。
+- 支持的其它 DDL ：存储程序、触发器、视图、UDF 的 CREATE、DROP 以及ALTER语句。
+- 支持账户管理相关的 DDL：用户和角色的 CREATE、ALTER、DROP 以及适用的 RENAME等等。
+
+```sql
+# MySQL 5.7
+ mysql> show tables;
+ +‐‐‐‐‐‐‐‐‐‐‐‐‐‐‐‐+
+ | Tables_in_test |
+ +‐‐‐‐‐‐‐‐‐‐‐‐‐‐‐‐+
+ | account |
+ | actor |
+ | employee |
+ | film |
+ | film_actor |
+ | leaf_id |
+ | t1 |
+ | test_innodb |
+ | test_myisam |
+ | test_order_id |
+ +‐‐‐‐‐‐‐‐‐‐‐‐‐‐‐‐+
+ 10 rows in set (0.01 sec)
+
+ mysql> drop table t1,t2; //删除表报错不会回滚，t1表会被删除
+ ERROR 1051 (42S02): Unknown table 'test.t2'
+ mysql> show tables;
+ +‐‐‐‐‐‐‐‐‐‐‐‐‐‐‐‐+
+ | Tables_in_test |
+ +‐‐‐‐‐‐‐‐‐‐‐‐‐‐‐‐+
+ | account |
+ | actor |
+ | employee |
+ | film |
+ | film_actor |
+ | leaf_id |
+ | test_innodb |
+ | test_myisam |
+ | test_order_id |
+ +‐‐‐‐‐‐‐‐‐‐‐‐‐‐‐‐+
+ 9 rows in set (0.00 sec)
+
+
+ # MySQL 8.0
+ mysql> show tables;
+ +‐‐‐‐‐‐‐‐‐‐‐‐‐‐‐‐+
+ | Tables_in_test |
+ +‐‐‐‐‐‐‐‐‐‐‐‐‐‐‐‐+
+ | account |
+ | actor |
+ | employee |
+ | film |
+ | film_actor |
+ | leaf_id |
+ | t1 |
+ | test_innodb |
+ | test_myisam |
+ | test_order_id |
+ +‐‐‐‐‐‐‐‐‐‐‐‐‐‐‐‐+
+ 10 rows in set (0.00 sec)
+
+ mysql> drop table t1,t2; //删除表报错会回滚，t1表依然还在
+ ERROR 1051 (42S02): Unknown table 'test.t2'
+ mysql> show tables;
+ +‐‐‐‐‐‐‐‐‐‐‐‐‐‐‐‐+
+ | Tables_in_test |
+ +‐‐‐‐‐‐‐‐‐‐‐‐‐‐‐‐+
+ | account |
+ | actor |
+ | employee |
+ | film |
+ | film_actor |
+ | leaf_id |
+ | t1 |
+ | test_innodb |
+ | test_myisam |
+ | test_order_id |
+ +‐‐‐‐‐‐‐‐‐‐‐‐‐‐‐‐+
+ 10 rows in set (0.00 sec)
+```
+
+### 参数修改持久化
+MySQL 8.0版本支持在线修改全局参数并持久化，通过加上PERSIST关键字，可以将修改的参数持久化到新的配置文件（mysqld-auto.cnf）中，重启MySQL时，可以从该配置文件获取到最新的配置参数。set global 设置的变量参数在mysql重启后会失效。
+```sql
+ set persist innodb_lock_wait_timeout=25;
+ 系统会在数据目录下生成一个包含json格式的mysqld‐auto.cnf 的文件，当my.cnf 和mysqld‐auto.cnf 同时存在时，后者具有更高优先级。
+```
