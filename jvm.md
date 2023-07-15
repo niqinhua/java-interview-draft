@@ -332,7 +332,7 @@ referenceQueue.poll()!=null循环获取拿到gc事件
 
 关于方法区的：
 - -XX:MaxMetaspaceSize：元空间最大值，默认-1（不限制）
-- -XX:MetaspaceSize：元空间触发fullgc的初始阈值（元空间无固定初始大小），默认是21M左右，达到该值就会触发fullgc进行类型泄卸载。
+- -XX:MetaspaceSize：元空间触发fullgc的初始阈值（元空间无固定初始大小），默认是21M左右，达到该值就会触发fullgc进行类型卸载。
     - 备注1：同时收集器会对该值进行调整: 如果释放了大量的空间， 就适当降低该值; 如果释放了很少的空间， 那么在不超过-XX:MaxMetaspaceSize(如果设置了的话) 的情况下，适当提高该值。
     - 备注2：由于调整元空间的大小需要FullGC，这是非常昂贵的操作，如果应用在启动的时候发生大量Full GC，通常都是由于永久代或元空间发生了大小调整，基于这种情况，一般建议在JVM参数中将MetaspaceSize和MaxMetaspaceSize设置成一样的值，并设置得比初始值要大， 对于8G物理内存的机器来说，一般我会将这两个值都设置为256M。
 - -XX:PermSize：永久代的初始容量
