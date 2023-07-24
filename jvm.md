@@ -209,7 +209,7 @@ public abstract class ClassLoader {
 - cas就是自旋比较更新前的情况和要更新时的情况，一样就分配成功。
 - TLAB就是先给每个线程划分一块私有内存空间，然后要给对象分配空间就在这个私有空间分配，不够空间了，就再申请，这样大大减少线程之间的竞争，提高分配效率。
 
-#### 对象头
+#### 对象头 （不熟悉）
 <a id = "ObjetHeader" />
 
 - 一般一个对象的内存空间包括三个东西:对象头、对象实例数据、对齐填充
@@ -231,7 +231,7 @@ public abstract class ClassLoader {
 64位对象头的运行时数据存储：：
 ![image](https://user-images.githubusercontent.com/27798171/180729096-ab8744be-4cb4-4394-8d8f-9dcf1869742b.png)
 
-#### 什么是java对象的指针压缩？为什么要进行指针压缩？
+#### 什么是java对象的指针压缩？为什么要进行指针压缩？（不熟悉）
 - 在64bit操作系统中，JVM支持指针压缩
 - 启用指针压缩:­XX:+UseCompressedOops(默认开启)，禁止指针压缩:­XX:­UseCompressedOops
 - 在64位平台的HotSpot中使用32位指针，内存使用会多出1.5倍左右，使用较大指针在主内存和缓存之间移动数据，占用较大宽带，同时GC也会承受较大压力
