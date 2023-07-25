@@ -303,7 +303,7 @@ referenceQueue.poll()!=null循环获取拿到gc事件
 
 ![image](https://user-images.githubusercontent.com/27798171/182285411-890dbd49-049d-4a30-86d5-d52a856ec9c9.png)
 
-- 后来就有了多线程的垃圾回收器，就是新生代的Parallel Scavenge 和老年代的 Parallel Old，垃圾回收时是多个GC线程的，也得暂停用户线程。这种一般适合一百兆到几个G的堆空间。这种垃圾回收器关注的是吞吐量，jdk8默认也是这一套。后面又有ParNew来搭配CMS，因为Parallel Scavenge没法兼容CMS。ParNew和Parallel Scavenge其实差不多。
+- 后来就有了多线程的垃圾回收器，就是新生代的Parallel Scavenge 和老年代的 Parallel Old，垃圾回收时是多个GC线程的，也得暂停用户线程。这种一般适合一百兆到几个G的堆空间。这种垃圾回收器关注的是吞吐量（所谓吞吐量就是CPU中用于运行用户代码的时间与CPU总消耗时间的比值），jdk8默认也是这一套。后面又有ParNew来搭配CMS，因为Parallel Scavenge没法兼容CMS。ParNew和Parallel Scavenge其实差不多。
 
 ![image](https://user-images.githubusercontent.com/27798171/182285440-b9c59337-d656-4c84-9f14-fa356d29418c.png)
 
