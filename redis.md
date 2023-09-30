@@ -392,13 +392,8 @@ XCLAIM key group consumer min-idle-time ID [ID …] [IDLE ms] [TIME ms-unix-time
   - 如果master收到了多个从节点的psync同步命令，主节点只会生成一次rdb文件，把这一份rdb文件发给多个从节点。
   - 如果中途从节点挂了，主节点会在内存创建一个缓存队列，缓存最近一段时间的数据，由于从节点有维护已同步数据的偏移位置和主节点的进程id，所以从节点可以发送带偏移位置的psync同步命令给主节点，主节点收到了就将缓存里面的数据从偏移量开始之后发给从节点，如果找不到偏移位置，或者主节点重启过导致进程id变了就直接全量同步给从节点。
   - 主节点挂了，需要人为指定一个节点为主节点，再修改其他从节点的主节点，而且客户端还得修改master节点地址，所以在数据量少的情况下，最好用哨兵模式。
-
 - 主从复制风暴问题：
   - 如果从节点太多，会导致主节点压力太多，要维持太多长连接，还得必传维持心跳，网络带宽压力也会比较大，所以可以考虑让主节点同步给部分从节点以后，让从节点与剩余从节点之间同步。
-
-<img src="https://user-images.githubusercontent.com/27798171/e4ad18b4-ac34-438d-a190-2ddd2bb043af.png"/>
-
-<img src="https://github.com/niqinhua/java-interview-draft/assets/27798171/e4ad18b4-ac34-438d-a190-2ddd2bb043af">
 
 ```
 (1) 从节点的redis.conf里面配置主节点
