@@ -201,6 +201,15 @@ BITOP operation destkey key [key ...]
 ### 哈希表
 ### 整数集合
 ### 跳表
+# 大key
+- 危害
+  - 内存占用过高。在极端情况下，可能导致内存耗尽，内存溢出。
+  - 性能下降。对于大Key的操作，都会消耗更多的CPU时间和内存资源，网络带宽等，进一步降低系统性能，影响主从同步速度。
+  - 阻塞其他操作。使用DEL命令删除一个大Key时，可能会导致Redis实例在一段时间内无法响应其他客户端请求，从而影响系统的响应时间和吞吐量。
+- 怎么找大key
+  - SCAN命令：通过使用Redis的SCAN命令，我们可以逐步遍历数据库中的所有Key。结合其他长度命令（如STRLEN、LLEN、SCARD、HLEN等），我们可以识别出大Key。SCAN命令的优势在于它可以在不会阻塞太久Redis实例
+  - bigkeys参数：使用redis-cli命令客户端，连接Redis服务的时候，加上 —bigkeys 参数，可以扫描每种数据类型数量最大的key。redis-cli -h 127.0.0.1 -p 6379 —bigkeys
+  - Redis RDB Tools工具可以分析RDB文件，扫描出Redis大key。输入指令rdb —commond memory —bytes 1024 —largest 3 dump.rbd（输出占用内存大于1kb，排名前3的keys。）
 # 模糊查找固定前缀的key
 
 - 如果用keys指令，数据量大的话，由于redis执行命令是单线程，所以会阻塞其他命令请求。
@@ -386,6 +395,10 @@ XCLAIM key group consumer min-idle-time ID [ID …] [IDLE ms] [TIME ms-unix-time
 
 - 主从复制风暴问题：
   - 如果从节点太多，会导致主节点压力太多，要维持太多长连接，还得必传维持心跳，网络带宽压力也会比较大，所以可以考虑让主节点同步给部分从节点以后，让从节点与剩余从节点之间同步。
+
+<img src="https://user-images.githubusercontent.com/27798171/e4ad18b4-ac34-438d-a190-2ddd2bb043af.png"/>
+
+<img src="https://github.com/niqinhua/java-interview-draft/assets/27798171/e4ad18b4-ac34-438d-a190-2ddd2bb043af">
 
 ```
 (1) 从节点的redis.conf里面配置主节点
@@ -648,6 +661,7 @@ List<Object> results = p.syncAndReturn();
 - redis事务
   - redis的事务不支持回滚，其中一个命令失败了，也不会影响其他命令。
   - 用mutil开启事务，后续发送的命令放到服务端队列里面，调用exec执行所有命令，执行到exec会阻塞其他命令，调用discard清空队列的命令。
+  - 事务中，如果其中一个指令有语法错误，调用exec整个不会执行。如果第二个指令有运行时错误，会导致第一个指令执行了没回滚
   - 有个watch命令可以监听指定的key，如果你执行的事务里面要修改这个key，就算调用了exec整个事务也不会执行。
   - 可以保证一致性和隔离性，因为事务前后数据是保持一致的，另外redis毕竟是单线程处理命令的，所以事务之间是隔离的，但不能保证持久性和原子性，因为不管是rdb和aof持久化都有概率宕机的时候丢失数据，没有原子性是因为不支持出错回滚，但能保证命令都执行过或都不执行。
 
@@ -656,7 +670,7 @@ List<Object> results = p.syncAndReturn();
 > MULTI
 OK
 > SET USER "Guide哥"
-QUEUED
+QUEUED //可以看到 sadd 命令此时的返回结果是 QUEUED，代表命令并没有真正执行， 而是暂时保存在 Redis 中的一个缓存队列(所以 discard 也只是丢弃这个缓存队 列中的未执行命令，并不会回滚已经操作过的数据，这一点要和关系型数据库的 Rollback 操作区分开)
 > GET USER
 QUEUED
 > EXEC
